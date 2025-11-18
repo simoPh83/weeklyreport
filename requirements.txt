@@ -1,2 +1,9 @@
 # PyQt6 with pre-built binaries (no C++ compiler needed)
 PyQt6>=6.4.0
+
+# Modern dark theme
+pyqtdarktheme>=2.1.0
+
+# Build tools (for creating executables)
+pyinstaller>=6.0.0
+pillow>=10.0.0

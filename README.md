@@ -1,52 +1,117 @@
 # Property Management System
 
-A PyQt6-based application for managing commercial properties with multi-user support and database locking.
+A PyQt6-based desktop application for managing commercial properties with multi-user support, database locking, and modern dark/light themes.
 
 ## Features
-- Multi-user login (no authentication)
+- **Multi-user support** with login system (no authentication required)
 - **Visual database path configuration** with automatic saving
-- Shared SQLite database on LAN drive
-- Hybrid locking mechanism (file + database)
-- Read-only mode when database is locked by another user
-- 10-minute auto-unlock on inactivity
-- Admin force-unlock capability
-- Audit logging for all changes
-- Buildings and Units management
+- **Shared SQLite database** on LAN drive with hybrid locking
+- **Modern UI themes** - dark, light, or auto (follows system)
+- **Read-only mode** when database is locked by another user
+- **10-minute auto-timeout** with automatic session cleanup
+- **Admin force-unlock** capability
+- **Audit logging** for all data changes
+- **Buildings and Units management** with full CRUD operations
 
-## Installation
+## Quick Start
 
-1. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### Running from Source
 
-2. Run the application:
-```bash
-python main.py
-```
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. **First Run**: Select database location when prompted
+2. **Run the application:**
+   ```bash
+   python main.py
+   ```
+
+3. **First run:** Select database location when prompted
    - For testing: Use suggested default path
-   - For production: Browse to network share
+   - For production: Browse to network share (e.g., `\\SERVER\Share\property.db`)
 
-4. The database location is saved automatically for future sessions
+4. **Login:** Select a user (admin, user1, or user2)
 
-## Changing Database Location
-4. The database location is saved automatically for future sessions
+The database location is saved automatically for future sessions.
+
+### Building Executable
+
+See **[guides/BUILD_README.md](guides/BUILD_README.md)** for instructions on creating standalone executables.
+
+## Project Structure
+
+```
+weeklyreport/
+├── main.py                 # Application entry point
+├── config.py              # Configuration (deprecated - uses dynamic path now)
+├── requirements.txt       # Python dependencies
+│
+├── core/                  # Core business logic
+│   └── lock_manager.py    # Hybrid locking system
+│
+├── database/              # Database layer
+│   └── db_manager.py      # All database operations
+│
+├── gui/                   # User interface
+│   ├── login_dialog.py
+│   ├── main_window.py
+│   ├── building_form.py
+│   ├── unit_form.py
+│   └── db_path_dialog.py
+│
+├── ui/                    # Qt Designer files (.ui)
+│   ├── login_dialog.ui
+│   ├── main_window.ui
+│   ├── building_form.ui
+│   └── unit_form.ui
+│
+├── utils/                 # Utility modules
+│   ├── db_path_manager.py # Path persistence
+│   └── helpers.py         # Utility functions
+│
+├── tests/                 # Test files
+│   ├── test_system.py
+│   ├── test_force_unlock.py
+│   ├── test_centralized_lock.py
+│   └── test_gui_lock_lost.py
+│
+└── guides/                # Documentation
+    ├── START_HERE.md
+    ├── ARCHITECTURE.md
+    ├── BUILD_INSTRUCTIONS.md
+    └── DATABASE_PATH_GUIDE.md
+```
+
+## Documentation
+
+- **[guides/START_HERE.md](guides/START_HERE.md)** - Development setup and workflow
+- **[guides/ARCHITECTURE.md](guides/ARCHITECTURE.md)** - System design and components
+- **[guides/DATABASE_PATH_GUIDE.md](guides/DATABASE_PATH_GUIDE.md)** - Database configuration
+- **[guides/BUILD_INSTRUCTIONS.md](guides/BUILD_INSTRUCTIONS.md)** - Creating executables
 
 ## Changing Database Location
 
 While the application is running:
 - **File → Change Database Path...** menu option
-- Select new location and the app will restart
+- Select new location and confirm restart
 
-Or manually:
+Or manually clear saved path:
 ```bash
-# Clear saved path (next run will show selector)
 python -c "from utils import clear_database_path; clear_database_path()"
 ```
 
-See [DATABASE_PATH_GUIDE.md](DATABASE_PATH_GUIDE.md) for details.
+## Requirements
+
+- Python 3.8+
+- PyQt6
+- qdarktheme (for modern UI)
+- SQLite3 (included with Python)
+
+## License
+
+[Your License Here]
+
 
 ## Editing UI Files
 

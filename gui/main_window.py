@@ -62,7 +62,7 @@ class MainWindow(QMainWindow):
         
         # Update window title with database path
         db_name = Path(self.db_path).name
-        self.setWindowTitle(f"Property Management System - {db_name}")
+        self.setWindowTitle(f"Weekly Report - {db_name}")
         
         # Setup tables
         self.setup_buildings_table()
@@ -251,7 +251,7 @@ class MainWindow(QMainWindow):
                 self.unitsTable.setItem(row, 4, QTableWidgetItem(str(unit.get('bedrooms', '') or '')))
                 self.unitsTable.setItem(row, 5, QTableWidgetItem(str(unit.get('bathrooms', '') or '')))
                 self.unitsTable.setItem(row, 6, QTableWidgetItem(str(unit.get('square_feet', '') or '')))
-                self.unitsTable.setItem(row, 7, QTableWidgetItem(f"${unit.get('rent_amount', 0):.2f}" if unit.get('rent_amount') else ''))
+                self.unitsTable.setItem(row, 7, QTableWidgetItem(f"£{unit.get('rent_amount', 0):.2f}" if unit.get('rent_amount') else ''))
                 self.unitsTable.setItem(row, 8, QTableWidgetItem(unit.get('status', '')))
                 self.unitsTable.setItem(row, 9, QTableWidgetItem(unit.get('tenant_name', '') or ''))
         
@@ -439,8 +439,8 @@ class MainWindow(QMainWindow):
         db_name = Path(self.db_path).name
         QMessageBox.about(
             self,
-            "About Property Management System",
-            "Property Management System\n\n"
+            "About Weekly Report",
+            "Weekly Report\n\n"
             "A multi-user property management application with:\n"
             "- Shared SQLite database\n"
             "- Hybrid locking mechanism\n"

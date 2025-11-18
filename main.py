@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
+import qdarktheme
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -20,8 +21,14 @@ def main():
     """Main application entry point"""
     # Create Qt application
     app = QApplication(sys.argv)
-    app.setApplicationName("Property Management System")
-    app.setOrganizationName("Your Organization")
+    app.setApplicationName("Weekly Report")
+    app.setOrganizationName("The Langham Estate")
+    
+    # Apply dark theme
+    # Options: "dark", "light", or "auto" (follows system preference)
+    # You can also specify theme variations like:
+    # qdarktheme.load_stylesheet("dark", "rounded") for rounded corners
+    app.setStyleSheet(qdarktheme.load_stylesheet("light"))
     
     try:
         # Load or select database path

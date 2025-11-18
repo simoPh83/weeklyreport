@@ -30,7 +30,7 @@ class DatabasePathDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # Title label
-        title_label = QLabel("Property Management System")
+        title_label = QLabel("Weekly Report")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         font = title_label.font()
         font.setPointSize(14)
@@ -43,7 +43,7 @@ class DatabasePathDialog(QDialog):
         
         # Info label
         info_label = QLabel(
-            "Please select the property management database file.\n"
+            "Please select the weekly report database file.\n"
             "This should be accessible by all users (e.g., on a network share)."
         )
         info_label.setWordWrap(True)

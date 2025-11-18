@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Property Management - Login</string>
+   <string>TLE - Weekly Report - Login</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -29,18 +29,18 @@
    </item>
    <item>
     <widget class="QLabel" name="titleLabel">
-     <property name="text">
-      <string>Property Management System</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
      <property name="font">
       <font>
        <pointsize>16</pointsize>
        <weight>75</weight>
        <bold>true</bold>
       </font>
+     </property>
+     <property name="text">
+      <string>Weekly Report</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
      </property>
     </widget>
    </item>
@@ -106,7 +106,7 @@
    <item>
     <widget class="QLabel" name="statusLabel">
      <property name="text">
-      <string></string>
+      <string/>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -146,14 +146,14 @@
      </item>
      <item>
       <widget class="QPushButton" name="loginButton">
-       <property name="text">
-        <string>Login</string>
-       </property>
        <property name="minimumSize">
         <size>
          <width>100</width>
          <height>35</height>
         </size>
+       </property>
+       <property name="text">
+        <string>Login</string>
        </property>
        <property name="default">
         <bool>true</bool>
@@ -162,14 +162,14 @@
      </item>
      <item>
       <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancel</string>
-       </property>
        <property name="minimumSize">
         <size>
          <width>100</width>
          <height>35</height>
         </size>
+       </property>
+       <property name="text">
+        <string>Cancel</string>
        </property>
       </widget>
      </item>
