@@ -73,15 +73,14 @@ class DatabaseManager:
                 )
             """)
             
-            # Units table
+            # Units table (Commercial properties: offices and retail)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS units (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     building_id INTEGER NOT NULL,
                     unit_number TEXT NOT NULL,
                     floor INTEGER,
-                    bedrooms INTEGER,
-                    bathrooms REAL,
+                    unit_type TEXT DEFAULT 'Office',  -- 'Office' or 'Retail'
                     square_feet REAL,
                     rent_amount REAL,
                     status TEXT DEFAULT 'Vacant',
@@ -358,16 +357,15 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO units (
-                    building_id, unit_number, floor, bedrooms, bathrooms,
+                    building_id, unit_number, floor, unit_type,
                     square_feet, rent_amount, status, tenant_name,
                     lease_start, lease_end, notes, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data.get('building_id'),
                 data.get('unit_number'),
                 data.get('floor'),
-                data.get('bedrooms'),
-                data.get('bathrooms'),
+                data.get('unit_type', 'Office'),
                 data.get('square_feet'),
                 data.get('rent_amount'),
                 data.get('status', 'Vacant'),
@@ -395,7 +393,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE units
-                SET building_id = ?, unit_number = ?, floor = ?, bedrooms = ?, bathrooms = ?,
+                SET building_id = ?, unit_number = ?, floor = ?, unit_type = ?,
                     square_feet = ?, rent_amount = ?, status = ?, tenant_name = ?,
                     lease_start = ?, lease_end = ?, notes = ?,
                     updated_at = CURRENT_TIMESTAMP, updated_by = ?
@@ -404,8 +402,7 @@ class DatabaseManager:
                 data.get('building_id'),
                 data.get('unit_number'),
                 data.get('floor'),
-                data.get('bedrooms'),
-                data.get('bathrooms'),
+                data.get('unit_type', 'Office'),
                 data.get('square_feet'),
                 data.get('rent_amount'),
                 data.get('status', 'Vacant'),

@@ -28,7 +28,7 @@ def main():
     # Options: "dark", "light", or "auto" (follows system preference)
     # You can also specify theme variations like:
     # qdarktheme.load_stylesheet("dark", "rounded") for rounded corners
-    app.setStyleSheet(qdarktheme.load_stylesheet("light"))
+    app.setStyleSheet(qdarktheme.load_stylesheet("dark"))
     
     try:
         # Load or select database path

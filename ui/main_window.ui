@@ -308,12 +308,7 @@
           </column>
           <column>
            <property name="text">
-            <string>Bedrooms</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Bathrooms</string>
+            <string>Type</string>
            </property>
           </column>
           <column>

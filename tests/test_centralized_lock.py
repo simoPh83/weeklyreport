@@ -128,8 +128,7 @@ def test_centralized_lock_verification():
             'building_id': building_id,
             'unit_number': '101',
             'floor': 1,
-            'bedrooms': 2,
-            'bathrooms': 1.0,
+            'unit_type': 'Office',
             'square_feet': 1000,
             'rent_amount': 1500,
             'status': 'Vacant'

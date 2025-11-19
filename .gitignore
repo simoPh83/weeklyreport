@@ -31,7 +31,7 @@ wheels/
 *~
 
 # Database
-*.db
+# *.db - to have the database commited
 *.sqlite
 *.sqlite3
 *.db-journal

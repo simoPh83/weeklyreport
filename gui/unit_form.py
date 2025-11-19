@@ -78,10 +78,13 @@ class UnitFormDialog(QDialog):
                 self.unitNumberEdit.setText(unit.get('unit_number', ''))
                 if unit.get('floor') is not None:
                     self.floorSpinBox.setValue(unit['floor'])
-                if unit.get('bedrooms') is not None:
-                    self.bedroomsSpinBox.setValue(unit['bedrooms'])
-                if unit.get('bathrooms') is not None:
-                    self.bathroomsSpinBox.setValue(unit['bathrooms'])
+                    
+                # Set unit type
+                unit_type = unit.get('unit_type', 'Office')
+                index = self.unitTypeComboBox.findText(unit_type)
+                if index >= 0:
+                    self.unitTypeComboBox.setCurrentIndex(index)
+                    
                 if unit.get('square_feet') is not None:
                     self.squareFeetSpinBox.setValue(unit['square_feet'])
                 
@@ -132,8 +135,7 @@ class UnitFormDialog(QDialog):
             'building_id': self.buildingComboBox.currentData(),
             'unit_number': self.unitNumberEdit.text().strip(),
             'floor': self.floorSpinBox.value() if self.floorSpinBox.value() != 0 else None,
-            'bedrooms': self.bedroomsSpinBox.value() if self.bedroomsSpinBox.value() > 0 else None,
-            'bathrooms': self.bathroomsSpinBox.value() if self.bathroomsSpinBox.value() > 0 else None,
+            'unit_type': self.unitTypeComboBox.currentText(),
             'square_feet': self.squareFeetSpinBox.value() if self.squareFeetSpinBox.value() > 0 else None,
             'rent_amount': self.rentSpinBox.value() if self.rentSpinBox.value() > 0 else None,
             'status': self.statusComboBox.currentText(),

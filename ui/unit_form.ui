@@ -68,44 +68,34 @@
        </widget>
       </item>
       <item row="3" column="0">
-       <widget class="QLabel" name="bedroomsLabel">
+       <widget class="QLabel" name="unitTypeLabel">
         <property name="text">
-         <string>Bedrooms:</string>
+         <string>Unit Type:</string>
         </property>
        </widget>
       </item>
       <item row="3" column="1">
-       <widget class="QSpinBox" name="bedroomsSpinBox">
-        <property name="maximum">
-         <number>20</number>
-        </property>
+       <widget class="QComboBox" name="unitTypeComboBox">
+        <item>
+         <property name="text">
+          <string>Office</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Retail</string>
+         </property>
+        </item>
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QLabel" name="bathroomsLabel">
-        <property name="text">
-         <string>Bathrooms:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QDoubleSpinBox" name="bathroomsSpinBox">
-        <property name="maximum">
-         <double>20.000000000000000</double>
-        </property>
-        <property name="singleStep">
-         <double>0.500000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
        <widget class="QLabel" name="squareFeetLabel">
         <property name="text">
          <string>Square Feet:</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="4" column="1">
        <widget class="QDoubleSpinBox" name="squareFeetSpinBox">
         <property name="maximum">
          <double>99999.989999999997672</double>

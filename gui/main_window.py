@@ -118,10 +118,10 @@ class MainWindow(QMainWindow):
     
     def setup_units_table(self):
         """Setup units table"""
-        self.unitsTable.setColumnCount(10)
+        self.unitsTable.setColumnCount(9)
         self.unitsTable.setHorizontalHeaderLabels([
-            'ID', 'Building', 'Unit Number', 'Floor', 'Bedrooms', 
-            'Bathrooms', 'Sq Ft', 'Rent', 'Status', 'Tenant'
+            'ID', 'Building', 'Unit Number', 'Floor', 'Type', 
+            'Sq Ft', 'Rent', 'Status', 'Tenant'
         ])
         self.unitsTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.unitsTable.setColumnHidden(0, True)  # Hide ID column
@@ -248,12 +248,11 @@ class MainWindow(QMainWindow):
                 self.unitsTable.setItem(row, 1, QTableWidgetItem(unit.get('building_name', '')))
                 self.unitsTable.setItem(row, 2, QTableWidgetItem(unit.get('unit_number', '')))
                 self.unitsTable.setItem(row, 3, QTableWidgetItem(str(unit.get('floor', '') or '')))
-                self.unitsTable.setItem(row, 4, QTableWidgetItem(str(unit.get('bedrooms', '') or '')))
-                self.unitsTable.setItem(row, 5, QTableWidgetItem(str(unit.get('bathrooms', '') or '')))
-                self.unitsTable.setItem(row, 6, QTableWidgetItem(str(unit.get('square_feet', '') or '')))
-                self.unitsTable.setItem(row, 7, QTableWidgetItem(f"£{unit.get('rent_amount', 0):.2f}" if unit.get('rent_amount') else ''))
-                self.unitsTable.setItem(row, 8, QTableWidgetItem(unit.get('status', '')))
-                self.unitsTable.setItem(row, 9, QTableWidgetItem(unit.get('tenant_name', '') or ''))
+                self.unitsTable.setItem(row, 4, QTableWidgetItem(unit.get('unit_type', 'Office')))
+                self.unitsTable.setItem(row, 5, QTableWidgetItem(str(unit.get('square_feet', '') or '')))
+                self.unitsTable.setItem(row, 6, QTableWidgetItem(f"£{unit.get('rent_amount', 0):.2f}" if unit.get('rent_amount') else ''))
+                self.unitsTable.setItem(row, 7, QTableWidgetItem(unit.get('status', '')))
+                self.unitsTable.setItem(row, 8, QTableWidgetItem(unit.get('tenant_name', '') or ''))
         
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to refresh units: {str(e)}")
