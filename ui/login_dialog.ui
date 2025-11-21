@@ -60,7 +60,7 @@
    <item>
     <widget class="QLabel" name="instructionLabel">
      <property name="text">
-      <string>Select your username to continue:</string>
+      <string>Enter your credentials to continue:</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -81,12 +81,45 @@
     </spacer>
    </item>
    <item>
-    <widget class="QComboBox" name="userComboBox">
+    <widget class="QLabel" name="usernameLabel">
+     <property name="text">
+      <string>Username:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLineEdit" name="usernameLineEdit">
      <property name="minimumSize">
       <size>
        <width>0</width>
        <height>30</height>
       </size>
+     </property>
+     <property name="placeholderText">
+      <string>Enter username</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="passwordLabel">
+     <property name="text">
+      <string>Password:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLineEdit" name="passwordLineEdit">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>30</height>
+      </size>
+     </property>
+     <property name="echoMode">
+      <enum>QLineEdit::Password</enum>
+     </property>
+     <property name="placeholderText">
+      <string>Enter password</string>
      </property>
     </widget>
    </item>

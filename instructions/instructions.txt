@@ -1,5 +1,9 @@
 cd "/Volumes/Marketing/Simone Morciano/python working folder/colour picker/color-picker" && source venv/bin/activate && python color_picker.py
 
+run from command line in Windows
+.\.venv\Scripts\activate.bat
+python main.py
+
 
 0) Install git   macOS:
 Homebrew: brew install git

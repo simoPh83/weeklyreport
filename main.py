@@ -11,8 +11,8 @@ import qdarktheme
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database import DatabaseManager
-from core import LockManager
+from config import get_repository, USE_LOCAL_MODE
+from services import AuthService, BuildingService, UnitService
 from gui import LoginDialog, MainWindow, DatabasePathDialog
 from utils import load_database_path, save_database_path
 
@@ -48,11 +48,16 @@ def main():
             # Save the selected path
             save_database_path(db_path)
         
-        # Initialize database manager
-        db_manager = DatabaseManager(db_path)
+        # Initialize repository (abstraction over database/lock managers)
+        repository = get_repository(db_path)
+        
+        # Initialize services
+        auth_service = AuthService(repository)
+        building_service = BuildingService(repository, auth_service)
+        unit_service = UnitService(repository, auth_service)
         
         # Show login dialog
-        login_dialog = LoginDialog(db_manager)
+        login_dialog = LoginDialog(auth_service)
         if login_dialog.exec() != login_dialog.DialogCode.Accepted:
             return 0
         
@@ -62,16 +67,21 @@ def main():
             QMessageBox.critical(None, "Error", "No user selected")
             return 1
         
-        # Initialize lock manager
-        lock_manager = LockManager(db_path, db_manager)
+        # Set current user in auth service
+        user_dict = current_user
+        from models import User
+        user_model = User(
+            id=user_dict['id'],
+            username=user_dict['username'],
+            display_name=user_dict['display_name'],
+            is_admin=user_dict['is_admin']
+        )
+        auth_service.set_current_user(user_model)
         
-        # Set lock manager in database manager for write verification
-        db_manager.set_lock_manager(lock_manager)
-        
-        # Try to acquire write lock
-        success, error_msg = lock_manager.acquire_write_lock(
-            current_user['id'],
-            current_user['username']
+        # Try to acquire write lock via auth service
+        success, session_id = auth_service.acquire_write_lock(
+            user_dict['id'],
+            user_dict['username']
         )
         
         if not success:
@@ -79,12 +89,12 @@ def main():
             QMessageBox.information(
                 None,
                 "Read-Only Mode",
-                f"Could not acquire write lock:\n{error_msg}\n\n"
+                f"Could not acquire write lock:\n{session_id}\n\n"
                 "You can view data but cannot make changes."
             )
         
         # Create and show main window
-        main_window = MainWindow(db_manager, lock_manager, current_user, db_path)
+        main_window = MainWindow(auth_service, building_service, unit_service, current_user, db_path)
         main_window.show()
         
         # Run application
@@ -92,6 +102,8 @@ def main():
     
     except Exception as e:
         QMessageBox.critical(None, "Fatal Error", f"Application failed to start:\n{str(e)}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 

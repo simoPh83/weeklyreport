@@ -3,6 +3,7 @@ Database Manager for Property Management System
 Handles all database operations, schema initialization, and queries
 """
 import sqlite3
+import bcrypt
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
@@ -47,6 +48,8 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
                     display_name TEXT NOT NULL,
+                    password_hash TEXT,
+                    email TEXT,
                     is_admin INTEGER DEFAULT 0,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -212,15 +215,101 @@ class DatabaseManager:
             row = cursor.fetchone()
             return dict(row) if row else None
     
-    # Buildings CRUD
-    def get_all_buildings(self) -> List[Dict[str, Any]]:
-        """Get all buildings"""
+    def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+        """
+        Authenticate user with username and password
+        Returns user dict if authentication successful, None otherwise
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT b.*, u.display_name as created_by_name
+                SELECT id, username, display_name, is_admin, password_hash
+                FROM users
+                WHERE username = ? AND is_active = 1
+            """, (username,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            user = dict(row)
+            password_hash = user.pop('password_hash', None)
+            
+            # If no password hash, allow login (backward compatibility)
+            if not password_hash:
+                return user
+            
+            # Verify password
+            if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+                return user
+            
+            return None
+    
+    def set_user_password(self, user_id: int, password: str) -> bool:
+        """
+        Set or update user password
+        """
+        # Hash password
+        salt = bcrypt.gensalt()
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), salt)
+        
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE users
+                    SET password_hash = ?
+                    WHERE id = ?
+                """, (password_hash.decode('utf-8'), user_id))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error setting password: {e}")
+            return False
+    
+    def create_user(self, username: str, display_name: str, password: str, 
+                    is_admin: bool = False, email: Optional[str] = None) -> int:
+        """
+        Create new user with password
+        Returns user ID
+        """
+        # Hash password
+        salt = bcrypt.gensalt()
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), salt)
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO users (username, display_name, password_hash, email, is_admin)
+                VALUES (?, ?, ?, ?, ?)
+            """, (username, display_name, password_hash.decode('utf-8'), email, 1 if is_admin else 0))
+            conn.commit()
+            return cursor.lastrowid
+    
+    # Buildings CRUD
+    def get_all_buildings(self) -> List[Dict[str, Any]]:
+        """Get all buildings with occupancy percentage"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    b.*,
+                    u.display_name as created_by_name,
+                    -- Calculate occupancy percentage
+                    CASE 
+                        WHEN COUNT(unit.id) = 0 THEN 0
+                        ELSE ROUND(
+                            (SUM(CASE WHEN unit.status = 'Let' THEN 1 ELSE 0 END) * 100.0) 
+                            / COUNT(unit.id), 
+                            1
+                        )
+                    END as occupancy
                 FROM buildings b
                 LEFT JOIN users u ON b.created_by = u.id
+                LEFT JOIN units unit ON unit.building_id = b.id
+                GROUP BY b.id, b.name, b.address, b.city, b.state, b.zip_code, 
+                         b.total_units, b.notes, 
+                         b.created_by, b.created_at, b.updated_at, b.updated_by, u.display_name
                 ORDER BY b.name
             """)
             return [dict(row) for row in cursor.fetchall()]

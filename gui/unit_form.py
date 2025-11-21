@@ -7,16 +7,15 @@ from PyQt6.QtWidgets import QDialog, QMessageBox
 from PyQt6.QtCore import QDate
 from pathlib import Path
 
-from database.db_manager import DatabaseWriteError
-
 
 class UnitFormDialog(QDialog):
     """Dialog for adding or editing unit information"""
     
-    def __init__(self, db_manager, user_id, unit_id=None, parent=None):
+    def __init__(self, unit_service, building_service, user_id, unit_id=None, parent=None):
         super().__init__(parent)
         
-        self.db_manager = db_manager
+        self.unit_service = unit_service
+        self.building_service = building_service
         self.user_id = user_id
         self.unit_id = unit_id
         
@@ -40,15 +39,19 @@ class UnitFormDialog(QDialog):
         # Connect signals
         self.buttonBox.accepted.connect(self.handle_save)
         self.buttonBox.rejected.connect(self.reject)
+        
+        # Enable thousand separators for numeric fields
+        self.squareFeetSpinBox.setGroupSeparatorShown(True)
+        self.rentSpinBox.setGroupSeparatorShown(True)
     
     def load_buildings(self):
         """Load buildings into combo box"""
         try:
-            buildings = self.db_manager.get_all_buildings()
+            buildings = self.building_service.get_all_buildings()
             
             self.buildingComboBox.clear()
             for building in buildings:
-                self.buildingComboBox.addItem(building['name'], building['id'])
+                self.buildingComboBox.addItem(building.name, building.id)
             
             if self.buildingComboBox.count() == 0:
                 QMessageBox.warning(
@@ -67,52 +70,56 @@ class UnitFormDialog(QDialog):
             return
         
         try:
-            unit = self.db_manager.get_unit_by_id(self.unit_id)
+            unit = self.unit_service.get_unit_by_id(self.unit_id)
             if unit:
                 # Set building
-                index = self.buildingComboBox.findData(unit.get('building_id'))
+                index = self.buildingComboBox.findData(unit.building_id)
                 if index >= 0:
                     self.buildingComboBox.setCurrentIndex(index)
                 
                 # Set basic info
-                self.unitNumberEdit.setText(unit.get('unit_number', ''))
-                if unit.get('floor') is not None:
-                    self.floorSpinBox.setValue(unit['floor'])
+                self.unitNumberEdit.setText(unit.unit_number)
+                if unit.floor is not None:
+                    self.floorSpinBox.setValue(unit.floor)
                     
                 # Set unit type
-                unit_type = unit.get('unit_type', 'Office')
+                unit_type = unit.unit_type or 'Office'
                 index = self.unitTypeComboBox.findText(unit_type)
                 if index >= 0:
                     self.unitTypeComboBox.setCurrentIndex(index)
                     
-                if unit.get('square_feet') is not None:
-                    self.squareFeetSpinBox.setValue(unit['square_feet'])
+                if unit.square_feet is not None:
+                    self.squareFeetSpinBox.setValue(unit.square_feet)
+                    # Format display with thousand separator
+                    self.squareFeetSpinBox.setGroupSeparatorShown(True)
                 
                 # Set financial info
-                if unit.get('rent_amount') is not None:
-                    self.rentSpinBox.setValue(unit['rent_amount'])
+                if unit.rent_amount is not None:
+                    self.rentSpinBox.setValue(unit.rent_amount)
+                    # Format display with thousand separator
+                    self.rentSpinBox.setGroupSeparatorShown(True)
                 
                 # Set tenant info
-                status = unit.get('status', 'Vacant')
+                status = unit.status or 'Vacant'
                 index = self.statusComboBox.findText(status)
                 if index >= 0:
                     self.statusComboBox.setCurrentIndex(index)
                 
-                self.tenantNameEdit.setText(unit.get('tenant_name', '') or '')
+                self.tenantNameEdit.setText(unit.tenant_name or '')
                 
                 # Set dates
-                if unit.get('lease_start'):
-                    lease_start = QDate.fromString(unit['lease_start'], 'yyyy-MM-dd')
+                if unit.lease_start:
+                    lease_start = QDate.fromString(str(unit.lease_start), 'yyyy-MM-dd')
                     if lease_start.isValid():
                         self.leaseStartEdit.setDate(lease_start)
                 
-                if unit.get('lease_end'):
-                    lease_end = QDate.fromString(unit['lease_end'], 'yyyy-MM-dd')
+                if unit.lease_end:
+                    lease_end = QDate.fromString(str(unit.lease_end), 'yyyy-MM-dd')
                     if lease_end.isValid():
                         self.leaseEndEdit.setDate(lease_end)
                 
                 # Set notes
-                self.notesEdit.setPlainText(unit.get('notes', '') or '')
+                self.notesEdit.setPlainText(unit.notes or '')
         
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load unit data: {str(e)}")
@@ -148,14 +155,14 @@ class UnitFormDialog(QDialog):
         try:
             if self.unit_id:
                 # Update existing unit
-                self.db_manager.update_unit(self.unit_id, data, self.user_id)
+                self.unit_service.update_unit(self.unit_id, data)
             else:
                 # Create new unit
-                self.db_manager.create_unit(data, self.user_id)
+                self.unit_service.create_unit(data)
             
             self.accept()
         
-        except DatabaseWriteError as e:
+        except PermissionError as e:
             # Handle lock verification failure
             QMessageBox.critical(
                 self,

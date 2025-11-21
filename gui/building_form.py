@@ -6,16 +6,14 @@ from PyQt6 import uic
 from PyQt6.QtWidgets import QDialog, QMessageBox
 from pathlib import Path
 
-from database.db_manager import DatabaseWriteError
-
 
 class BuildingFormDialog(QDialog):
     """Dialog for adding or editing building information"""
     
-    def __init__(self, db_manager, user_id, building_id=None, parent=None):
+    def __init__(self, building_service, user_id, building_id=None, parent=None):
         super().__init__(parent)
         
-        self.db_manager = db_manager
+        self.building_service = building_service
         self.user_id = user_id
         self.building_id = building_id
         
@@ -40,15 +38,15 @@ class BuildingFormDialog(QDialog):
             return
         
         try:
-            building = self.db_manager.get_building_by_id(self.building_id)
+            building = self.building_service.get_building_by_id(self.building_id)
             if building:
-                self.nameEdit.setText(building.get('name', ''))
-                self.addressEdit.setText(building.get('address', '') or '')
-                self.cityEdit.setText(building.get('city', '') or '')
-                self.stateEdit.setText(building.get('state', '') or '')
-                self.zipCodeEdit.setText(building.get('zip_code', '') or '')
-                self.totalUnitsSpinBox.setValue(building.get('total_units', 0) or 0)
-                self.notesEdit.setPlainText(building.get('notes', '') or '')
+                self.nameEdit.setText(building.name)
+                self.addressEdit.setText(building.address or '')
+                self.cityEdit.setText(building.city or '')
+                self.stateEdit.setText(building.state or '')
+                self.zipCodeEdit.setText(building.zip_code or '')
+                self.totalUnitsSpinBox.setValue(0)  # total_units not in model
+                self.notesEdit.setPlainText(building.notes or '')
         
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load building data: {str(e)}")
@@ -76,19 +74,19 @@ class BuildingFormDialog(QDialog):
         try:
             if self.building_id:
                 # Update existing building
-                self.db_manager.update_building(self.building_id, data, self.user_id)
+                self.building_service.update_building(self.building_id, data)
             else:
                 # Create new building
-                self.db_manager.create_building(data, self.user_id)
+                self.building_service.create_building(data)
             
             self.accept()
         
-        except DatabaseWriteError as e:
+        except PermissionError as e:
             # Handle lock verification failure
             QMessageBox.critical(
                 self,
                 "Write Lock Lost",
-                f"{str(e)}\\n\\nChanges cannot be saved."
+                f"{str(e)}\n\nChanges cannot be saved."
             )
             self.reject()
         
