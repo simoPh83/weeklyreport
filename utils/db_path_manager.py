@@ -36,6 +36,32 @@ def get_settings_file() -> Path:
     return get_app_data_dir() / 'settings.pkl'
 
 
+def _load_settings() -> dict:
+    """Load all settings from file"""
+    try:
+        settings_file = get_settings_file()
+        if not settings_file.exists():
+            return {}
+        
+        with open(settings_file, 'rb') as f:
+            return pickle.load(f)
+    except Exception as e:
+        print(f"Error loading settings: {e}")
+        return {}
+
+
+def _save_settings(settings: dict) -> bool:
+    """Save all settings to file"""
+    try:
+        settings_file = get_settings_file()
+        with open(settings_file, 'wb') as f:
+            pickle.dump(settings, f)
+        return True
+    except Exception as e:
+        print(f"Error saving settings: {e}")
+        return False
+
+
 def save_database_path(db_path: str) -> bool:
     """
     Save database path to settings file
@@ -46,17 +72,9 @@ def save_database_path(db_path: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    try:
-        settings_file = get_settings_file()
-        settings = {'database_path': db_path}
-        
-        with open(settings_file, 'wb') as f:
-            pickle.dump(settings, f)
-        
-        return True
-    except Exception as e:
-        print(f"Error saving database path: {e}")
-        return False
+    settings = _load_settings()
+    settings['database_path'] = db_path
+    return _save_settings(settings)
 
 
 def load_database_path() -> Optional[str]:
@@ -66,20 +84,34 @@ def load_database_path() -> Optional[str]:
     Returns:
         Database path if found, None otherwise
     """
-    try:
-        settings_file = get_settings_file()
-        
-        if not settings_file.exists():
-            return None
-        
-        with open(settings_file, 'rb') as f:
-            settings = pickle.load(f)
-        
-        return settings.get('database_path')
+    settings = _load_settings()
+    return settings.get('database_path')
+
+
+def save_theme_preference(theme: str) -> bool:
+    """
+    Save theme preference to settings file
     
-    except Exception as e:
-        print(f"Error loading database path: {e}")
-        return None
+    Args:
+        theme: Theme name ('dark' or 'light')
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    settings = _load_settings()
+    settings['theme'] = theme
+    return _save_settings(settings)
+
+
+def load_theme_preference() -> str:
+    """
+    Load theme preference from settings file
+    
+    Returns:
+        Theme name ('dark' or 'light'), defaults to 'dark'
+    """
+    settings = _load_settings()
+    return settings.get('theme', 'dark')
 
 
 def clear_database_path() -> bool:

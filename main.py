@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config import get_repository, USE_LOCAL_MODE
 from services import AuthService, BuildingService, UnitService
 from gui import LoginDialog, MainWindow, DatabasePathDialog
-from utils import load_database_path, save_database_path
+from utils import load_database_path, save_database_path, load_theme_preference
 
 
 def main():
@@ -24,11 +24,9 @@ def main():
     app.setApplicationName("Weekly Report")
     app.setOrganizationName("The Langham Estate")
     
-    # Apply dark theme
-    # Options: "dark", "light", or "auto" (follows system preference)
-    # You can also specify theme variations like:
-    # qdarktheme.load_stylesheet("dark", "rounded") for rounded corners
-    app.setStyleSheet(qdarktheme.load_stylesheet("dark"))
+    # Apply theme based on saved preference
+    theme = load_theme_preference()  # Returns 'dark' by default
+    app.setStyleSheet(qdarktheme.load_stylesheet(theme))
     
     try:
         # Load or select database path

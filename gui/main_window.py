@@ -4,15 +4,16 @@ Loads main_window.ui and manages the main application interface
 """
 import sys
 from PyQt6 import uic
-from PyQt6.QtWidgets import QMainWindow, QMessageBox, QTableWidgetItem, QHeaderView, QProgressBar, QWidget, QHBoxLayout
+from PyQt6.QtWidgets import QMainWindow, QMessageBox, QTableWidgetItem, QHeaderView, QProgressBar, QWidget, QHBoxLayout, QApplication
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QIcon
 from pathlib import Path
+import qdarktheme
 
 from .building_form import BuildingFormDialog
 from .unit_form import UnitFormDialog
 from .db_path_dialog import DatabasePathDialog
-from utils import save_database_path
+from utils import save_database_path, save_theme_preference, load_theme_preference
 
 
 class MainWindow(QMainWindow):
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
         self.current_user = current_user
         self.db_path = db_path
         self.is_read_only = False
+        self.current_theme = load_theme_preference()  # Load saved theme preference
         
         # Load UI file
         ui_path = Path(__file__).parent.parent / 'ui' / 'main_window.ui'
@@ -75,6 +77,9 @@ class MainWindow(QMainWindow):
         self.setup_units_table()
         self.setup_audit_table()
         
+        # Setup theme toggle button
+        self.setup_theme_toggle()
+        
         # Check initial lock status
         self.check_lock_status()
     
@@ -100,6 +105,7 @@ class MainWindow(QMainWindow):
         self.actionAbout.triggered.connect(self.show_about)
         self.actionRefresh.triggered.connect(self.refresh_all_data)
         self.actionForceUnlock.triggered.connect(self.force_unlock)
+        self.actionToggleTheme.triggered.connect(self.toggle_theme)
         
         # Add change database path action if it doesn't exist
         if not hasattr(self, 'actionChangeDatabasePath'):
@@ -315,12 +321,20 @@ class MainWindow(QMainWindow):
         else:
             color = "#f44336"  # Red - very low
         
+        # Theme-aware background colors
+        if self.current_theme == 'dark':
+            bg_color = "#2b2b2b"
+            border_color = "#555"
+        else:
+            bg_color = "#e0e0e0"
+            border_color = "#999"
+        
         progress.setStyleSheet(f"""
             QProgressBar {{
-                border: 1px solid #555;
+                border: 1px solid {border_color};
                 border-radius: 3px;
                 text-align: center;
-                background-color: #2b2b2b;
+                background-color: {bg_color};
             }}
             QProgressBar::chunk {{
                 background-color: {color};
@@ -593,6 +607,41 @@ class MainWindow(QMainWindow):
             f"Current User: {self.current_user['display_name']}\n"
             f"Admin: {'Yes' if self.current_user.get('is_admin') else 'No'}"
         )
+    
+    def setup_theme_toggle(self):
+        """Setup theme toggle button with sun/moon icons"""
+        # Create icons using Unicode characters (works without icon files)
+        # Sun emoji for light theme, Moon emoji for dark theme
+        self.update_theme_icon()
+    
+    def update_theme_icon(self):
+        """Update the theme toggle button icon based on current theme"""
+        if self.current_theme == 'dark':
+            # Show sun icon when in dark mode (click to go to light)
+            self.actionToggleTheme.setText("☀️ Light Mode")
+            self.actionToggleTheme.setToolTip("Switch to Light theme")
+        else:
+            # Show moon icon when in light mode (click to go to dark)
+            self.actionToggleTheme.setText("🌙 Dark Mode")
+            self.actionToggleTheme.setToolTip("Switch to Dark theme")
+    
+    def toggle_theme(self):
+        """Toggle between dark and light themes"""
+        # Switch theme
+        self.current_theme = 'light' if self.current_theme == 'dark' else 'dark'
+        
+        # Apply new theme
+        app = QApplication.instance()
+        app.setStyleSheet(qdarktheme.load_stylesheet(self.current_theme))
+        
+        # Save preference
+        save_theme_preference(self.current_theme)
+        
+        # Update icon
+        self.update_theme_icon()
+        
+        # Refresh buildings table to update progress bar colors
+        self.refresh_buildings()
     
     def change_database_path(self):
         """Change database path"""

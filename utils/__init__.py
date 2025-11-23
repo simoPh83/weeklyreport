@@ -3,7 +3,9 @@ from .db_path_manager import (
     get_app_data_dir,
     save_database_path,
     load_database_path,
-    clear_database_path
+    clear_database_path,
+    save_theme_preference,
+    load_theme_preference
 )
 
 from .helpers import (
@@ -22,6 +24,8 @@ __all__ = [
     'save_database_path',
     'load_database_path',
     'clear_database_path',
+    'save_theme_preference',
+    'load_theme_preference',
     # Helper functions
     'format_currency',
     'format_date',
