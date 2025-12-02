@@ -94,29 +94,31 @@ class UnitFormDialog(QDialog):
                     self.squareFeetSpinBox.setGroupSeparatorShown(True)
                 
                 # Set financial info
-                if unit.rent_amount is not None:
-                    self.rentSpinBox.setValue(unit.rent_amount)
-                    # Format display with thousand separator
-                    self.rentSpinBox.setGroupSeparatorShown(True)
+                # TODO: Update for new schema - old columns removed
+                # if unit.rent_amount is not None:
+                #     self.rentSpinBox.setValue(unit.rent_amount)
+                #     self.rentSpinBox.setGroupSeparatorShown(True)
                 
                 # Set tenant info
-                status = unit.status or 'Vacant'
-                index = self.statusComboBox.findText(status)
-                if index >= 0:
-                    self.statusComboBox.setCurrentIndex(index)
+                # TODO: Update for new schema - status column removed
+                # status = unit.status or 'Vacant'
+                # index = self.statusComboBox.findText(status)
+                # if index >= 0:
+                #     self.statusComboBox.setCurrentIndex(index)
                 
-                self.tenantNameEdit.setText(unit.tenant_name or '')
+                # self.tenantNameEdit.setText(unit.tenant_name or '')
                 
                 # Set dates
-                if unit.lease_start:
-                    lease_start = QDate.fromString(str(unit.lease_start), 'yyyy-MM-dd')
-                    if lease_start.isValid():
-                        self.leaseStartEdit.setDate(lease_start)
+                # TODO: Update for new schema - lease dates removed
+                # if unit.lease_start:
+                #     lease_start = QDate.fromString(str(unit.lease_start), 'yyyy-MM-dd')
+                #     if lease_start.isValid():
+                #         self.leaseStartEdit.setDate(lease_start)
                 
-                if unit.lease_end:
-                    lease_end = QDate.fromString(str(unit.lease_end), 'yyyy-MM-dd')
-                    if lease_end.isValid():
-                        self.leaseEndEdit.setDate(lease_end)
+                # if unit.lease_end:
+                #     lease_end = QDate.fromString(str(unit.lease_end), 'yyyy-MM-dd')
+                #     if lease_end.isValid():
+                #         self.leaseEndEdit.setDate(lease_end)
                 
                 # Set notes
                 self.notesEdit.setPlainText(unit.notes or '')

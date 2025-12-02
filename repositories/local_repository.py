@@ -113,6 +113,10 @@ class LocalRepository(BaseRepository):
         """Get all buildings (returns raw dicts for backward compatibility)"""
         return self.db_manager.get_all_buildings()
     
+    def get_all_current_buildings(self) -> List[dict]:
+        """Get all buildings with current capital valuations (returns raw dicts)"""
+        return self.db_manager.get_all_current_buildings()
+    
     def get_building_by_id(self, building_id: int) -> Optional[dict]:
         """Get building by ID"""
         row = self.db_manager.get_building_by_id(building_id)

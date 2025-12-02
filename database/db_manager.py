@@ -288,31 +288,100 @@ class DatabaseManager:
     
     # Buildings CRUD
     def get_all_buildings(self) -> List[Dict[str, Any]]:
-        """Get all buildings with occupancy percentage"""
+        """Get all buildings with occupancy percentage (legacy method)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT 
                     b.*,
                     u.display_name as created_by_name,
-                    -- Calculate occupancy percentage
-                    CASE 
-                        WHEN COUNT(unit.id) = 0 THEN 0
-                        ELSE ROUND(
-                            (SUM(CASE WHEN unit.status = 'Let' THEN 1 ELSE 0 END) * 100.0) 
-                            / COUNT(unit.id), 
-                            1
-                        )
-                    END as occupancy
+                    0.0 as occupancy
                 FROM buildings b
                 LEFT JOIN users u ON b.created_by = u.id
-                LEFT JOIN units unit ON unit.building_id = b.id
-                GROUP BY b.id, b.name, b.address, b.city, b.state, b.zip_code, 
-                         b.total_units, b.notes, 
-                         b.created_by, b.created_at, b.updated_at, b.updated_by, u.display_name
-                ORDER BY b.name
+                ORDER BY b.property_code
             """)
             return [dict(row) for row in cursor.fetchall()]
+    
+    def get_all_current_buildings(self) -> List[Dict[str, Any]]:
+        """Get all buildings with most recent capital valuation and occupancy percentage"""
+        from datetime import datetime
+        import time
+        
+        start_time = time.time()
+        print(f"DEBUG: Starting get_all_current_buildings at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
+        
+        current_year = datetime.now().year
+        min_year = 2000  # Safety limit
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # First, get all buildings
+            query_start = time.time()
+            cursor.execute("""
+                SELECT 
+                    b.*,
+                    u.display_name as created_by_name,
+                    0.0 as occupancy
+                FROM buildings b
+                LEFT JOIN users u ON b.created_by = u.id
+                ORDER BY b.property_code
+            """)
+            buildings = [dict(row) for row in cursor.fetchall()]
+            query_time = time.time() - query_start
+            print(f"DEBUG: Fetched {len(buildings)} buildings in {query_time:.3f}s")
+            
+            # OPTIMIZED: Get all latest valuations in a single query using subquery
+            valuation_start = time.time()
+            cursor.execute("""
+                SELECT 
+                    cv.building_id,
+                    cv.valuation_year,
+                    cv.valuation_amount
+                FROM capital_valuations cv
+                INNER JOIN (
+                    SELECT building_id, MAX(valuation_year) as max_year
+                    FROM capital_valuations
+                    WHERE valuation_year BETWEEN ? AND ?
+                    GROUP BY building_id
+                ) latest ON cv.building_id = latest.building_id 
+                    AND cv.valuation_year = latest.max_year
+            """, (min_year, current_year))
+            
+            # Create a lookup dictionary for quick access
+            valuations_map = {}
+            for row in cursor.fetchall():
+                valuations_map[row['building_id']] = {
+                    'latest_valuation_year': row['valuation_year'],
+                    'latest_valuation_amount': row['valuation_amount']
+                }
+            
+            valuation_time = time.time() - valuation_start
+            print(f"DEBUG: Fetched valuations in {valuation_time:.3f}s (1 optimized query)")
+            
+            # Merge valuations into buildings
+            merge_start = time.time()
+            missing_count = 0
+            for building in buildings:
+                building_id = building['id']
+                if building_id in valuations_map:
+                    building.update(valuations_map[building_id])
+                else:
+                    missing_count += 1
+                    print(f"DEBUG: No capital valuation found for building ID {building_id} "
+                          f"(property_code: {building.get('property_code', 'N/A')}, "
+                          f"property_name: {building.get('property_name', 'N/A')}) "
+                          f"between years {min_year} and {current_year}")
+                    building['latest_valuation_year'] = None
+                    building['latest_valuation_amount'] = None
+            
+            merge_time = time.time() - merge_start
+            print(f"DEBUG: Merged data in {merge_time:.3f}s ({missing_count} buildings without valuations)")
+            
+            total_time = time.time() - start_time
+            print(f"DEBUG: Total get_all_current_buildings time: {total_time:.3f}s")
+            
+            return buildings
     
     def get_building_by_id(self, building_id: int) -> Optional[Dict[str, Any]]:
         """Get building by ID"""
@@ -334,15 +403,19 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO buildings (name, address, city, state, zip_code, total_units, notes, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO buildings (
+                    property_code, property_name, property_address, postcode, 
+                    client_code, acquisition_date, disposal_date, notes, created_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                data.get('name'),
-                data.get('address'),
-                data.get('city'),
-                data.get('state'),
-                data.get('zip_code'),
-                data.get('total_units', 0),
+                data.get('property_code'),
+                data.get('property_name'),
+                data.get('property_address'),
+                data.get('postcode'),
+                data.get('client_code'),
+                data.get('acquisition_date'),
+                data.get('disposal_date'),
                 data.get('notes'),
                 user_id
             ))
@@ -364,16 +437,19 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE buildings
-                SET name = ?, address = ?, city = ?, state = ?, zip_code = ?,
-                    total_units = ?, notes = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                SET property_code = ?, property_name = ?, property_address = ?, 
+                    postcode = ?, client_code = ?, acquisition_date = ?, 
+                    disposal_date = ?, notes = ?, 
+                    updated_at = CURRENT_TIMESTAMP, updated_by = ?
                 WHERE id = ?
             """, (
-                data.get('name'),
-                data.get('address'),
-                data.get('city'),
-                data.get('state'),
-                data.get('zip_code'),
-                data.get('total_units', 0),
+                data.get('property_code'),
+                data.get('property_name'),
+                data.get('property_address'),
+                data.get('postcode'),
+                data.get('client_code'),
+                data.get('acquisition_date'),
+                data.get('disposal_date'),
                 data.get('notes'),
                 user_id,
                 building_id
@@ -405,11 +481,12 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, b.name as building_name
+                SELECT u.*, b.property_name as building_name, ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
+                LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
                 WHERE u.building_id = ?
-                ORDER BY u.unit_number
+                ORDER BY u.unit_name
             """, (building_id,))
             return [dict(row) for row in cursor.fetchall()]
     
@@ -418,10 +495,11 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, b.name as building_name
+                SELECT u.*, b.property_name as building_name, ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
-                ORDER BY b.name, u.unit_number
+                LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
+                ORDER BY b.property_code, u.unit_name
             """)
             return [dict(row) for row in cursor.fetchall()]
     
@@ -430,9 +508,10 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, b.name as building_name
+                SELECT u.*, b.property_name as building_name, ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
+                LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
                 WHERE u.id = ?
             """, (unit_id,))
             row = cursor.fetchone()
@@ -446,21 +525,13 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO units (
-                    building_id, unit_number, floor, unit_type,
-                    square_feet, rent_amount, status, tenant_name,
-                    lease_start, lease_end, notes, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    building_id, unit_name, sq_ft, unit_type_id, notes, created_by
+                ) VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 data.get('building_id'),
-                data.get('unit_number'),
-                data.get('floor'),
-                data.get('unit_type', 'Office'),
-                data.get('square_feet'),
-                data.get('rent_amount'),
-                data.get('status', 'Vacant'),
-                data.get('tenant_name'),
-                data.get('lease_start'),
-                data.get('lease_end'),
+                data.get('unit_name'),
+                data.get('sq_ft'),
+                data.get('unit_type_id'),
                 data.get('notes'),
                 user_id
             ))
@@ -482,14 +553,14 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE units
-                SET building_id = ?, unit_number = ?, floor = ?, unit_type = ?,
-                    square_feet = ?, rent_amount = ?, status = ?, tenant_name = ?,
-                    lease_start = ?, lease_end = ?, notes = ?,
+                SET building_id = ?, unit_name = ?, sq_ft = ?, unit_type_id = ?, notes = ?,
                     updated_at = CURRENT_TIMESTAMP, updated_by = ?
                 WHERE id = ?
             """, (
                 data.get('building_id'),
-                data.get('unit_number'),
+                data.get('unit_name'),
+                data.get('sq_ft'),
+                data.get('unit_type_id'),
                 data.get('floor'),
                 data.get('unit_type', 'Office'),
                 data.get('square_feet'),
@@ -497,7 +568,8 @@ class DatabaseManager:
                 data.get('status', 'Vacant'),
                 data.get('tenant_name'),
                 data.get('lease_start'),
-                data.get('lease_end'),
+                data.get('sq_ft'),
+                data.get('unit_type_id'),
                 data.get('notes'),
                 user_id,
                 unit_id

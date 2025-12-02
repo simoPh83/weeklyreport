@@ -15,8 +15,8 @@ class BuildingService:
         self.auth_service = auth_service
     
     def get_all_buildings(self) -> List[Building]:
-        """Get all buildings"""
-        buildings_data = self.repository.get_all_buildings()
+        """Get all buildings with current capital valuations"""
+        buildings_data = self.repository.get_all_current_buildings()
         return [Building(**building) for building in buildings_data]
     
     def get_building_by_id(self, building_id: int) -> Optional[Building]:

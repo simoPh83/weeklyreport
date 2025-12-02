@@ -6,159 +6,133 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>550</width>
-    <height>500</height>
+    <width>500</width>
+    <height>450</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Property Details</string>
+   <string>Building Details</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QGroupBox" name="detailsGroupBox">
      <property name="title">
-      <string>Property Information</string>
+      <string>Building Information</string>
      </property>
      <layout class="QFormLayout" name="formLayout">
       <property name="fieldGrowthPolicy">
        <enum>QFormLayout::ExpandingFieldsGrow</enum>
       </property>
       <item row="0" column="0">
-       <widget class="QLabel" name="propertyCodeLabel">
+       <widget class="QLabel" name="nameLabel">
         <property name="text">
-         <string>Property Code: *</string>
+         <string>Building Name: *</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QLineEdit" name="propertyCodeEdit">
+       <widget class="QLineEdit" name="nameEdit">
         <property name="placeholderText">
-         <string>6-digit code (e.g., 550020)</string>
-        </property>
-        <property name="maxLength">
-         <number>6</number>
+         <string>Enter building name</string>
         </property>
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="propertyNameLabel">
+       <widget class="QLabel" name="addressLabel">
         <property name="text">
-         <string>Property Name:</string>
+         <string>Address:</string>
         </property>
        </widget>
       </item>
       <item row="1" column="1">
-       <widget class="QLineEdit" name="propertyNameEdit">
+       <widget class="QLineEdit" name="addressEdit">
         <property name="placeholderText">
-         <string>Optional property name</string>
+         <string>Street address</string>
         </property>
        </widget>
       </item>
       <item row="2" column="0">
-       <widget class="QLabel" name="propertyAddressLabel">
+       <widget class="QLabel" name="cityLabel">
         <property name="text">
-         <string>Property Address: *</string>
+         <string>City:</string>
         </property>
        </widget>
       </item>
       <item row="2" column="1">
-       <widget class="QLineEdit" name="propertyAddressEdit">
+       <widget class="QLineEdit" name="cityEdit">
         <property name="placeholderText">
-         <string>Full street address</string>
+         <string>City</string>
         </property>
        </widget>
       </item>
       <item row="3" column="0">
-       <widget class="QLabel" name="postcodeLabel">
+       <widget class="QLabel" name="stateLabel">
         <property name="text">
-         <string>Postcode: *</string>
+         <string>State:</string>
         </property>
        </widget>
       </item>
       <item row="3" column="1">
-       <widget class="QLineEdit" name="postcodeEdit">
+       <widget class="QLineEdit" name="stateEdit">
         <property name="placeholderText">
-         <string>UK postcode</string>
+         <string>State</string>
         </property>
         <property name="maxLength">
-         <number>10</number>
+         <number>2</number>
         </property>
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QLabel" name="clientCodeLabel">
+       <widget class="QLabel" name="zipCodeLabel">
         <property name="text">
-         <string>Client Code: *</string>
+         <string>Zip Code:</string>
         </property>
        </widget>
       </item>
       <item row="4" column="1">
-       <widget class="QLineEdit" name="clientCodeEdit">
+       <widget class="QLineEdit" name="zipCodeEdit">
         <property name="placeholderText">
-         <string>3-letter client code</string>
-        </property>
-        <property name="maxLength">
-         <number>10</number>
+         <string>Zip code</string>
         </property>
        </widget>
       </item>
       <item row="5" column="0">
-       <widget class="QLabel" name="acquisitionDateLabel">
+       <widget class="QLabel" name="totalUnitsLabel">
         <property name="text">
-         <string>Acquisition Date:</string>
+         <string>Total Units:</string>
         </property>
        </widget>
       </item>
       <item row="5" column="1">
-       <widget class="QDateEdit" name="acquisitionDateEdit">
-        <property name="displayFormat">
-         <string>dd/MM/yyyy</string>
+       <widget class="QSpinBox" name="totalUnitsSpinBox">
+        <property name="minimum">
+         <number>0</number>
         </property>
-        <property name="calendarPopup">
-         <bool>true</bool>
-        </property>
-        <property name="specialValueText">
-         <string>Not set</string>
+        <property name="maximum">
+         <number>9999</number>
         </property>
        </widget>
       </item>
       <item row="6" column="0">
-       <widget class="QLabel" name="disposalDateLabel">
-        <property name="text">
-         <string>Disposal Date:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1">
-       <widget class="QDateEdit" name="disposalDateEdit">
-        <property name="displayFormat">
-         <string>dd/MM/yyyy</string>
-        </property>
-        <property name="calendarPopup">
-         <bool>true</bool>
-        </property>
-        <property name="specialValueText">
-         <string>Not set</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="0">
        <widget class="QLabel" name="notesLabel">
         <property name="text">
          <string>Notes:</string>
         </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+        </property>
        </widget>
       </item>
-      <item row="7" column="1">
-       <widget class="QTextEdit" name="notesEdit">
-        <property name="maximumSize">
+      <item row="6" column="1">
+       <widget class="QPlainTextEdit" name="notesEdit">
+        <property name="minimumSize">
          <size>
-          <width>16777215</width>
+          <width>0</width>
           <height>100</height>
          </size>
         </property>
         <property name="placeholderText">
-         <string>Additional notes</string>
+         <string>Additional notes or comments</string>
         </property>
        </widget>
       </item>
@@ -170,8 +144,10 @@
      <property name="text">
       <string>* Required fields</string>
      </property>
-     <property name="styleSheet">
-      <string notr="true">color: #666; font-style: italic;</string>
+     <property name="font">
+      <font>
+       <italic>true</italic>
+      </font>
      </property>
     </widget>
    </item>
@@ -190,6 +166,9 @@
    </item>
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
      <property name="standardButtons">
       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Save</set>
      </property>
@@ -206,12 +185,12 @@
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>249</x>
-     <y>429</y>
+     <x>248</x>
+     <y>419</y>
     </hint>
     <hint type="destinationlabel">
-     <x>249</x>
-     <y>224</y>
+     <x>157</x>
+     <y>424</y>
     </hint>
    </hints>
   </connection>
@@ -222,12 +201,12 @@
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>249</x>
-     <y>429</y>
+     <x>316</x>
+     <y>419</y>
     </hint>
     <hint type="destinationlabel">
-     <x>249</x>
-     <y>224</y>
+     <x>286</x>
+     <y>424</y>
     </hint>
    </hints>
   </connection>

@@ -125,9 +125,9 @@ class MainWindow(QMainWindow):
     
     def setup_buildings_table(self):
         """Setup buildings table"""
-        self.buildingsTable.setColumnCount(8)
+        self.buildingsTable.setColumnCount(9)
         self.buildingsTable.setHorizontalHeaderLabels([
-            'ID', 'Name', 'Address', 'City', 'State', 'Zip Code', 'Total Units', 'Occupancy %'
+            'ID', 'Property Code', 'Property Name', 'Address', 'Postcode', 'Client', 'Acquired', 'Capital Valuation (£)', 'Occupancy %'
         ])
         self.buildingsTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.buildingsTable.setColumnHidden(0, True)  # Hide ID column
@@ -140,10 +140,9 @@ class MainWindow(QMainWindow):
     
     def setup_units_table(self):
         """Setup units table"""
-        self.unitsTable.setColumnCount(9)
+        self.unitsTable.setColumnCount(5)
         self.unitsTable.setHorizontalHeaderLabels([
-            'ID', 'Building', 'Unit Number', 'Floor', 'Type', 
-            'Sq Ft', 'Rent', 'Status', 'Tenant'
+            'ID', 'Building', 'Unit Name', 'Sq Ft', 'Type'
         ])
         self.unitsTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.unitsTable.setColumnHidden(0, True)  # Hide ID column
@@ -269,12 +268,30 @@ class MainWindow(QMainWindow):
                 self.buildingsTable.insertRow(row)
                 
                 self.buildingsTable.setItem(row, 0, QTableWidgetItem(str(building.id)))
-                self.buildingsTable.setItem(row, 1, QTableWidgetItem(building.name))
-                self.buildingsTable.setItem(row, 2, QTableWidgetItem(building.address or ''))
-                self.buildingsTable.setItem(row, 3, QTableWidgetItem(building.city or ''))
-                self.buildingsTable.setItem(row, 4, QTableWidgetItem(building.state or ''))
-                self.buildingsTable.setItem(row, 5, QTableWidgetItem(building.zip_code or ''))
-                self.buildingsTable.setItem(row, 6, QTableWidgetItem(str(building.notes or '')))
+                self.buildingsTable.setItem(row, 1, QTableWidgetItem(building.property_code))
+                self.buildingsTable.setItem(row, 2, QTableWidgetItem(building.property_name or ''))
+                self.buildingsTable.setItem(row, 3, QTableWidgetItem(building.property_address or ''))
+                self.buildingsTable.setItem(row, 4, QTableWidgetItem(building.postcode or ''))
+                self.buildingsTable.setItem(row, 5, QTableWidgetItem(building.client_code or ''))
+                
+                # Format acquisition date as DD/MM/YYYY
+                acquired_text = ''
+                if building.acquisition_date:
+                    acquired_text = building.acquisition_date.strftime('%d/%m/%Y')
+                self.buildingsTable.setItem(row, 6, QTableWidgetItem(acquired_text))
+                
+                # Add capital valuation (formatted with commas and year)
+                if building.latest_valuation_amount is not None:
+                    valuation_text = f"£{building.latest_valuation_amount:,.0f}"
+                    if building.latest_valuation_year:
+                        valuation_text += f" ({building.latest_valuation_year})"
+                    valuation_item = QTableWidgetItem(valuation_text)
+                    # Store numeric value for sorting
+                    valuation_item.setData(Qt.ItemDataRole.UserRole, building.latest_valuation_amount)
+                else:
+                    valuation_item = QTableWidgetItem("N/A")
+                    valuation_item.setData(Qt.ItemDataRole.UserRole, 0)
+                self.buildingsTable.setItem(row, 7, valuation_item)
                 
                 # Add occupancy percentage with progress bar
                 occupancy_value = building.occupancy if building.occupancy is not None else 0.0
@@ -282,11 +299,11 @@ class MainWindow(QMainWindow):
                 # Create a sortable item with numeric value for sorting
                 occupancy_item = QTableWidgetItem()
                 occupancy_item.setData(Qt.ItemDataRole.DisplayRole, occupancy_value)
-                self.buildingsTable.setItem(row, 7, occupancy_item)
+                self.buildingsTable.setItem(row, 8, occupancy_item)
                 
                 # Add visual progress bar widget on top
                 progress_widget = self.create_progress_bar(occupancy_value)
-                self.buildingsTable.setCellWidget(row, 7, progress_widget)
+                self.buildingsTable.setCellWidget(row, 8, progress_widget)
             
             # Re-enable sorting
             self.buildingsTable.setSortingEnabled(True)
@@ -360,26 +377,15 @@ class MainWindow(QMainWindow):
                 
                 self.unitsTable.setItem(row, 0, QTableWidgetItem(str(unit.id)))
                 self.unitsTable.setItem(row, 1, QTableWidgetItem(unit.building_name or ''))
-                self.unitsTable.setItem(row, 2, QTableWidgetItem(unit.unit_number))
-                self.unitsTable.setItem(row, 3, QTableWidgetItem(str(unit.floor) if unit.floor else ''))
-                self.unitsTable.setItem(row, 4, QTableWidgetItem(unit.unit_type or 'Office'))
+                self.unitsTable.setItem(row, 2, QTableWidgetItem(unit.unit_name or ''))
                 
-                # Square feet - store numeric value for sorting, display formatted text
+                # Square feet
                 sqft_item = QTableWidgetItem()
-                if unit.square_feet:
-                    sqft_item.setData(Qt.ItemDataRole.DisplayRole, unit.square_feet)  # Numeric value for sorting
-                    sqft_item.setText(f"{unit.square_feet:,.0f}")  # Formatted display with thousand separators
-                self.unitsTable.setItem(row, 5, sqft_item)
+                if unit.sq_ft:
+                    sqft_item.setData(Qt.ItemDataRole.DisplayRole, unit.sq_ft)
+                self.unitsTable.setItem(row, 3, sqft_item)
                 
-                # Rent amount - store numeric value for sorting, display formatted text
-                rent_item = QTableWidgetItem()
-                if unit.rent_amount:
-                    rent_item.setData(Qt.ItemDataRole.DisplayRole, unit.rent_amount)  # Numeric value for sorting
-                    rent_item.setText(f"£{unit.rent_amount:,.2f}")  # Formatted display with thousand separators
-                self.unitsTable.setItem(row, 6, rent_item)
-                
-                self.unitsTable.setItem(row, 7, QTableWidgetItem(unit.status or 'Vacant'))
-                self.unitsTable.setItem(row, 8, QTableWidgetItem(unit.tenant_name or ''))
+                self.unitsTable.setItem(row, 4, QTableWidgetItem(unit.unit_type_name or ''))
             
             # Re-enable sorting
             self.unitsTable.setSortingEnabled(True)
