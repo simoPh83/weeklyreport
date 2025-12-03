@@ -619,3 +619,150 @@ class DatabaseManager:
                 LIMIT ?
             """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
+    
+    # RBAC - Roles and Permissions Management
+    def get_all_roles(self) -> List[Dict[str, Any]]:
+        """Get all roles"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, name, description, rank
+                FROM roles
+                ORDER BY rank DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_all_permissions(self) -> List[Dict[str, Any]]:
+        """Get all permissions"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, name, description, category
+                FROM permissions
+                ORDER BY category, name
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_role_permissions(self) -> List[Dict[str, Any]]:
+        """Get all role-permission mappings"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    r.id as role_id,
+                    r.name as role_name,
+                    p.id as permission_id,
+                    p.name as permission_name
+                FROM role_permissions rp
+                JOIN roles r ON rp.role_id = r.id
+                JOIN permissions p ON rp.permission_id = p.id
+                ORDER BY r.rank DESC, p.category, p.name
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def grant_role_permission(self, role_id: int, permission_id: int, user_id: int) -> bool:
+        """Grant a permission to a role"""
+        self._verify_write_permission()
+        
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR IGNORE INTO role_permissions (role_id, permission_id, granted_by)
+                    VALUES (?, ?, ?)
+                """, (role_id, permission_id, user_id))
+                
+                # Log audit
+                self._log_audit(conn, user_id, 'GRANT_PERMISSION', 'role_permissions', 
+                              None, None, f"role_id={role_id}, permission_id={permission_id}")
+                
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error granting permission: {e}")
+            return False
+    
+    def revoke_role_permission(self, role_id: int, permission_id: int, user_id: int) -> bool:
+        """Revoke a permission from a role"""
+        self._verify_write_permission()
+        
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM role_permissions
+                    WHERE role_id = ? AND permission_id = ?
+                """, (role_id, permission_id))
+                
+                # Log audit
+                self._log_audit(conn, user_id, 'REVOKE_PERMISSION', 'role_permissions',
+                              None, f"role_id={role_id}, permission_id={permission_id}", None)
+                
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error revoking permission: {e}")
+            return False
+    
+    def get_user_roles(self) -> List[Dict[str, Any]]:
+        """Get all user-role assignments"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    u.id as user_id,
+                    u.username,
+                    u.display_name,
+                    r.id as role_id,
+                    r.name as role_name
+                FROM user_roles ur
+                JOIN users u ON ur.user_id = u.id
+                JOIN roles r ON ur.role_id = r.id
+                WHERE u.is_active = 1
+                ORDER BY u.display_name, r.rank DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def assign_user_role(self, user_id: int, role_id: int, assigned_by: int) -> bool:
+        """Assign a role to a user"""
+        self._verify_write_permission()
+        
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR IGNORE INTO user_roles (user_id, role_id, assigned_by)
+                    VALUES (?, ?, ?)
+                """, (user_id, role_id, assigned_by))
+                
+                # Log audit
+                self._log_audit(conn, assigned_by, 'ASSIGN_ROLE', 'user_roles',
+                              None, None, f"user_id={user_id}, role_id={role_id}")
+                
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error assigning role: {e}")
+            return False
+    
+    def unassign_user_role(self, user_id: int, role_id: int, unassigned_by: int) -> bool:
+        """Unassign a role from a user"""
+        self._verify_write_permission()
+        
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM user_roles
+                    WHERE user_id = ? AND role_id = ?
+                """, (user_id, role_id))
+                
+                # Log audit
+                self._log_audit(conn, unassigned_by, 'UNASSIGN_ROLE', 'user_roles',
+                              None, f"user_id={user_id}, role_id={role_id}", None)
+                
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error unassigning role: {e}")
+            return False

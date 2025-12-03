@@ -213,6 +213,40 @@ class LocalRepository(BaseRepository):
         """Get audit log entries (returns raw dicts for backward compatibility)"""
         return self.db_manager.get_audit_log(limit)
     
+    # ==================== RBAC - Roles and Permissions ====================
+    
+    def get_all_roles(self) -> List[dict]:
+        """Get all roles"""
+        return self.db_manager.get_all_roles()
+    
+    def get_all_permissions(self) -> List[dict]:
+        """Get all permissions"""
+        return self.db_manager.get_all_permissions()
+    
+    def get_role_permissions(self) -> List[dict]:
+        """Get all role-permission mappings"""
+        return self.db_manager.get_role_permissions()
+    
+    def grant_role_permission(self, role_id: int, permission_id: int, user_id: int) -> bool:
+        """Grant a permission to a role"""
+        return self.db_manager.grant_role_permission(role_id, permission_id, user_id)
+    
+    def revoke_role_permission(self, role_id: int, permission_id: int, user_id: int) -> bool:
+        """Revoke a permission from a role"""
+        return self.db_manager.revoke_role_permission(role_id, permission_id, user_id)
+    
+    def get_user_roles(self) -> List[dict]:
+        """Get all user-role assignments"""
+        return self.db_manager.get_user_roles()
+    
+    def assign_user_role(self, user_id: int, role_id: int, assigned_by: int) -> bool:
+        """Assign a role to a user"""
+        return self.db_manager.assign_user_role(user_id, role_id, assigned_by)
+    
+    def unassign_user_role(self, user_id: int, role_id: int, unassigned_by: int) -> bool:
+        """Unassign a role from a user"""
+        return self.db_manager.unassign_user_role(user_id, role_id, unassigned_by)
+    
     # ==================== Cleanup ====================
     
     def cleanup_stale_sessions(self, timeout_minutes: int = 10) -> int:

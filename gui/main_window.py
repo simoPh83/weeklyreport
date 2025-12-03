@@ -4,7 +4,7 @@ Loads main_window.ui and manages the main application interface
 """
 import sys
 from PyQt6 import uic
-from PyQt6.QtWidgets import QMainWindow, QMessageBox, QTableWidgetItem, QHeaderView, QProgressBar, QWidget, QHBoxLayout, QApplication
+from PyQt6.QtWidgets import QMainWindow, QMessageBox, QTableWidgetItem, QHeaderView, QProgressBar, QWidget, QHBoxLayout, QApplication, QCheckBox
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon
 from pathlib import Path
@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         self.setup_buildings_table()
         self.setup_units_table()
         self.setup_audit_table()
+        self.setup_permissions_tables()
         
         # Setup theme toggle button
         self.setup_theme_toggle()
@@ -99,6 +100,10 @@ class MainWindow(QMainWindow):
         
         # Audit tab
         self.refreshAuditButton.clicked.connect(self.refresh_audit)
+        
+        # Permissions tab
+        self.refreshRolePermissionsButton.clicked.connect(self.refresh_role_permissions)
+        self.refreshUserRolesButton.clicked.connect(self.refresh_user_roles)
         
         # Menu actions
         self.actionExit.triggered.connect(self.close)
@@ -137,6 +142,25 @@ class MainWindow(QMainWindow):
         
         # Enable sorting
         self.buildingsTable.setSortingEnabled(True)
+        
+        # Fix scrollbar - apply stylesheet to ensure scrollbar starts below header
+        self.buildingsTable.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #d0d0d0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget QTableCornerButton::section {
+                background: palette(base);
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                width: 14px;
+                margin: 0px 0px 0px 0px;
+            }
+        """)
     
     def setup_units_table(self):
         """Setup units table"""
@@ -152,6 +176,25 @@ class MainWindow(QMainWindow):
         
         # Enable sorting
         self.unitsTable.setSortingEnabled(True)
+        
+        # Fix scrollbar - apply stylesheet to ensure scrollbar starts below header
+        self.unitsTable.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #d0d0d0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget QTableCornerButton::section {
+                background: palette(base);
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                width: 14px;
+                margin: 0px 0px 0px 0px;
+            }
+        """)
     
     def setup_audit_table(self):
         """Setup audit log table"""
@@ -166,6 +209,55 @@ class MainWindow(QMainWindow):
         
         # Enable sorting
         self.auditTable.setSortingEnabled(True)
+        
+        # Fix scrollbar - apply stylesheet to ensure scrollbar starts below header
+        self.auditTable.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #d0d0d0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget QTableCornerButton::section {
+                background: palette(base);
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                width: 14px;
+                margin: 0px 0px 0px 0px;
+            }
+        """)
+    
+    def setup_permissions_tables(self):
+        """Setup role permissions and user roles tables"""
+        # Setup role permissions table
+        self.rolePermissionsTable.clear()
+        self.rolePermissionsTable.setEditTriggers(self.rolePermissionsTable.EditTrigger.NoEditTriggers)
+        
+        # Setup user roles table  
+        self.userRolesTable.clear()
+        self.userRolesTable.setEditTriggers(self.userRolesTable.EditTrigger.NoEditTriggers)
+        
+        # Apply consistent styling
+        for table in [self.rolePermissionsTable, self.userRolesTable]:
+            table.setStyleSheet("""
+                QTableWidget {
+                    gridline-color: #d0d0d0;
+                }
+                QTableWidget::item {
+                    padding: 5px;
+                }
+                QTableWidget QTableCornerButton::section {
+                    background: palette(base);
+                    border: none;
+                }
+                QScrollBar:vertical {
+                    border: none;
+                    width: 14px;
+                    margin: 0px 0px 0px 0px;
+                }
+            """)
     
     def on_building_header_clicked(self, logical_index: int):
         """Handle building table header clicks for custom occupancy sorting"""
@@ -253,6 +345,8 @@ class MainWindow(QMainWindow):
         self.refresh_buildings()
         self.refresh_units()
         self.refresh_audit()
+        self.refresh_role_permissions()
+        self.refresh_user_roles()
     
     def refresh_buildings(self):
         """Refresh buildings table"""
@@ -693,3 +787,174 @@ class MainWindow(QMainWindow):
             self.auth_service.release_write_lock(self.current_user['id'])
         
         event.accept()
+    
+    # ==================== Permissions Management ====================
+    
+    def refresh_role_permissions(self):
+        """Refresh role permissions table with checkboxes"""
+        try:
+            # Get all roles, permissions, and current mappings
+            roles = self.auth_service.repository.get_all_roles()
+            permissions = self.auth_service.repository.get_all_permissions()
+            role_perms = self.auth_service.repository.get_role_permissions()
+            
+            # Create a set of (role_id, permission_id) for quick lookup
+            granted = {(rp['role_id'], rp['permission_id']) for rp in role_perms}
+            
+            # Setup table
+            self.rolePermissionsTable.setRowCount(len(roles))
+            self.rolePermissionsTable.setColumnCount(len(permissions) + 1)
+            
+            # Set headers
+            headers = ['Role'] + [p['name'] for p in permissions]
+            self.rolePermissionsTable.setHorizontalHeaderLabels(headers)
+            
+            # Populate table
+            for row, role in enumerate(roles):
+                # Role name (read-only)
+                role_item = QTableWidgetItem(role['name'])
+                role_item.setFlags(role_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.rolePermissionsTable.setItem(row, 0, role_item)
+                
+                # Permission checkboxes
+                for col, permission in enumerate(permissions, start=1):
+                    checkbox_widget = QWidget()
+                    checkbox = QCheckBox()
+                    checkbox.setChecked((role['id'], permission['id']) in granted)
+                    
+                    # Connect checkbox to handler
+                    checkbox.stateChanged.connect(
+                        lambda state, r=role['id'], p=permission['id']: 
+                        self.on_role_permission_changed(r, p, state)
+                    )
+                    
+                    # Center the checkbox
+                    layout = QHBoxLayout(checkbox_widget)
+                    layout.addWidget(checkbox)
+                    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                    
+                    self.rolePermissionsTable.setCellWidget(row, col, checkbox_widget)
+            
+            # Resize columns
+            self.rolePermissionsTable.resizeColumnsToContents()
+            self.rolePermissionsTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to refresh role permissions: {str(e)}")
+    
+    def on_role_permission_changed(self, role_id: int, permission_id: int, state: int):
+        """Handle role permission checkbox change"""
+        try:
+            if state == Qt.CheckState.Checked.value:
+                # Grant permission
+                success = self.auth_service.repository.grant_role_permission(
+                    role_id, permission_id, self.current_user['id']
+                )
+                if success:
+                    print(f"Granted permission {permission_id} to role {role_id}")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to grant permission")
+                    self.refresh_role_permissions()  # Revert UI
+            else:
+                # Revoke permission
+                success = self.auth_service.repository.revoke_role_permission(
+                    role_id, permission_id, self.current_user['id']
+                )
+                if success:
+                    print(f"Revoked permission {permission_id} from role {role_id}")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to revoke permission")
+                    self.refresh_role_permissions()  # Revert UI
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to update permission: {str(e)}")
+            self.refresh_role_permissions()  # Revert UI
+    
+    def refresh_user_roles(self):
+        """Refresh user roles table with checkboxes"""
+        try:
+            # Get all users, roles, and current assignments
+            users = self.auth_service.repository.get_all_users()
+            roles = self.auth_service.repository.get_all_roles()
+            user_roles = self.auth_service.repository.get_user_roles()
+            
+            # Create a set of (user_id, role_id) for quick lookup
+            assigned = {(ur['user_id'], ur['role_id']) for ur in user_roles}
+            
+            # Setup table
+            self.userRolesTable.setRowCount(len(users))
+            self.userRolesTable.setColumnCount(len(roles) + 2)
+            
+            # Set headers
+            headers = ['Username', 'Display Name'] + [r['name'] for r in roles]
+            self.userRolesTable.setHorizontalHeaderLabels(headers)
+            
+            # Populate table
+            for row, user in enumerate(users):
+                # Username (read-only)
+                username_item = QTableWidgetItem(user['username'])
+                username_item.setFlags(username_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.userRolesTable.setItem(row, 0, username_item)
+                
+                # Display name (read-only)
+                display_item = QTableWidgetItem(user['display_name'])
+                display_item.setFlags(display_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.userRolesTable.setItem(row, 1, display_item)
+                
+                # Role checkboxes
+                for col, role in enumerate(roles, start=2):
+                    checkbox_widget = QWidget()
+                    checkbox = QCheckBox()
+                    checkbox.setChecked((user['id'], role['id']) in assigned)
+                    
+                    # Connect checkbox to handler
+                    checkbox.stateChanged.connect(
+                        lambda state, u=user['id'], r=role['id']: 
+                        self.on_user_role_changed(u, r, state)
+                    )
+                    
+                    # Center the checkbox
+                    layout = QHBoxLayout(checkbox_widget)
+                    layout.addWidget(checkbox)
+                    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                    
+                    self.userRolesTable.setCellWidget(row, col, checkbox_widget)
+            
+            # Resize columns
+            self.userRolesTable.resizeColumnsToContents()
+            self.userRolesTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+            self.userRolesTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to refresh user roles: {str(e)}")
+    
+    def on_user_role_changed(self, user_id: int, role_id: int, state: int):
+        """Handle user role checkbox change"""
+        try:
+            if state == Qt.CheckState.Checked.value:
+                # Assign role
+                success = self.auth_service.repository.assign_user_role(
+                    user_id, role_id, self.current_user['id']
+                )
+                if success:
+                    print(f"Assigned role {role_id} to user {user_id}")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to assign role")
+                    self.refresh_user_roles()  # Revert UI
+            else:
+                # Unassign role
+                success = self.auth_service.repository.unassign_user_role(
+                    user_id, role_id, self.current_user['id']
+                )
+                if success:
+                    print(f"Unassigned role {role_id} from user {user_id}")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to unassign role")
+                    self.refresh_user_roles()  # Revert UI
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to update role: {str(e)}")
+            self.refresh_user_roles()  # Revert UI
+
