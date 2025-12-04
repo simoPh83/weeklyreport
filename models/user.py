@@ -8,7 +8,6 @@ class User(BaseModel):
     id: Optional[int] = None
     username: str = Field(..., min_length=1)
     display_name: str = Field(..., min_length=1)
-    is_admin: bool = False
     
     # For Supabase mode (future)
     email: Optional[str] = None

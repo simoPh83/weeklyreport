@@ -28,8 +28,7 @@ def test_database():
         users = db_manager.get_all_users()
         print(f"   [OK] Found {len(users)} users:")
         for user in users:
-            print(f"      - {user['display_name']} ({user['username']}) "
-                  f"{'[ADMIN]' if user['is_admin'] else ''}")
+            print(f"      - {user['display_name']} ({user['username']})")
         
         print("\n3. Testing building operations...")
         test_building = {

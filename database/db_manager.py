@@ -50,7 +50,6 @@ class DatabaseManager:
                     display_name TEXT NOT NULL,
                     password_hash TEXT,
                     email TEXT,
-                    is_admin INTEGER DEFAULT 0,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -136,16 +135,16 @@ class DatabaseManager:
             cursor.execute("SELECT COUNT(*) FROM users")
             if cursor.fetchone()[0] == 0:
                 cursor.execute("""
-                    INSERT INTO users (username, display_name, is_admin)
-                    VALUES ('admin', 'Administrator', 1)
+                    INSERT INTO users (username, display_name)
+                    VALUES ('admin', 'Administrator')
                 """)
                 cursor.execute("""
-                    INSERT INTO users (username, display_name, is_admin)
-                    VALUES ('user1', 'User One', 0)
+                    INSERT INTO users (username, display_name)
+                    VALUES ('user1', 'User One')
                 """)
                 cursor.execute("""
-                    INSERT INTO users (username, display_name, is_admin)
-                    VALUES ('user2', 'User Two', 0)
+                    INSERT INTO users (username, display_name)
+                    VALUES ('user2', 'User Two')
                 """)
             
             conn.commit()
@@ -184,7 +183,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, username, display_name, is_admin
+                SELECT id, username, display_name
                 FROM users
                 WHERE is_active = 1
                 ORDER BY display_name
@@ -196,7 +195,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, username, display_name, is_admin
+                SELECT id, username, display_name
                 FROM users
                 WHERE id = ? AND is_active = 1
             """, (user_id,))
@@ -208,7 +207,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, username, display_name, is_admin
+                SELECT id, username, display_name
                 FROM users
                 WHERE username = ? AND is_active = 1
             """, (username,))
@@ -223,7 +222,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, username, display_name, is_admin, password_hash
+                SELECT id, username, display_name, password_hash
                 FROM users
                 WHERE username = ? AND is_active = 1
             """, (username,))
@@ -268,7 +267,7 @@ class DatabaseManager:
             return False
     
     def create_user(self, username: str, display_name: str, password: str, 
-                    is_admin: bool = False, email: Optional[str] = None) -> int:
+                    email: Optional[str] = None) -> int:
         """
         Create new user with password
         Returns user ID
@@ -280,9 +279,9 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO users (username, display_name, password_hash, email, is_admin)
-                VALUES (?, ?, ?, ?, ?)
-            """, (username, display_name, password_hash.decode('utf-8'), email, 1 if is_admin else 0))
+                INSERT INTO users (username, display_name, password_hash, email)
+                VALUES (?, ?, ?, ?)
+            """, (username, display_name, password_hash.decode('utf-8'), email))
             conn.commit()
             return cursor.lastrowid
     
@@ -766,3 +765,30 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error unassigning role: {e}")
             return False
+    
+    def user_has_role(self, user_id: int, role_name: str) -> bool:
+        """Check if user has a specific role by name"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM user_roles ur
+                JOIN roles r ON ur.role_id = r.id
+                WHERE ur.user_id = ? AND r.name = ?
+            """, (user_id, role_name))
+            result = cursor.fetchone()
+            return result['count'] > 0 if result else False
+    
+    def user_has_permission(self, user_id: int, permission_name: str) -> bool:
+        """Check if user has a specific permission through any of their roles"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM user_roles ur
+                JOIN role_permissions rp ON ur.role_id = rp.role_id
+                JOIN permissions p ON rp.permission_id = p.id
+                WHERE ur.user_id = ? AND p.name = ?
+            """, (user_id, permission_name))
+            result = cursor.fetchone()
+            return result['count'] > 0 if result else False

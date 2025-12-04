@@ -193,8 +193,7 @@ class LockManager:
             Tuple of (success: bool, message: str)
         """
         # Verify admin privileges
-        user = self.db_manager.get_user_by_id(admin_user_id)
-        if not user or not user.get('is_admin'):
+        if not self.db_manager.user_has_role(admin_user_id, 'Admin'):
             return False, "Only administrators can force unlock"
         
         unlocked_items = []

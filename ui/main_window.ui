@@ -429,19 +429,6 @@
         <item>
          <layout class="QHBoxLayout" name="rolePermissionsToolbarLayout">
           <item>
-           <widget class="QPushButton" name="refreshRolePermissionsButton">
-            <property name="text">
-             <string>Refresh</string>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>30</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item>
            <spacer name="rolePermissionsToolbarSpacer">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -453,6 +440,19 @@
              </size>
             </property>
            </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="setRolePermissionsButton">
+            <property name="text">
+             <string>Set</string>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>30</height>
+             </size>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>
@@ -483,19 +483,6 @@
         <item>
          <layout class="QHBoxLayout" name="userRolesToolbarLayout">
           <item>
-           <widget class="QPushButton" name="refreshUserRolesButton">
-            <property name="text">
-             <string>Refresh</string>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>30</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item>
            <spacer name="userRolesToolbarSpacer">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -507,6 +494,19 @@
              </size>
             </property>
            </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="setUserRolesButton">
+            <property name="text">
+             <string>Set</string>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>30</height>
+             </size>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>

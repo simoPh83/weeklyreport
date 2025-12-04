@@ -53,8 +53,7 @@ class LoginDialog(QDialog):
             self.selected_user = {
                 'id': authenticated_user.id,
                 'username': authenticated_user.username,
-                'display_name': authenticated_user.display_name,
-                'is_admin': authenticated_user.is_admin
+                'display_name': authenticated_user.display_name
             }
             self.accept()
         else:
