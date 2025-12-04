@@ -71,8 +71,7 @@ def main():
         user_model = User(
             id=user_dict['id'],
             username=user_dict['username'],
-            display_name=user_dict['display_name'],
-            is_admin=user_dict['is_admin']
+            display_name=user_dict['display_name']
         )
         auth_service.set_current_user(user_model)
         

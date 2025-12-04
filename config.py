@@ -11,9 +11,21 @@ if TYPE_CHECKING:
 
 # ==================== Mode Configuration ====================
 
-# Set to False to use API mode (FastAPI backend)
-# Set to True to use local SQLite mode
+# Database Access Mode
+# USE_LOCAL_MODE determines HOW the app accesses data:
+#   True  = Direct SQLite file access (LocalRepository) - current setup
+#   False = HTTP API calls to FastAPI backend (APIRepository) - future
 USE_LOCAL_MODE = os.getenv("USE_LOCAL_MODE", "true").lower() == "true"
+
+# File-Based Locking (only relevant when USE_LOCAL_MODE = True)
+# USE_FILE_LOCK determines if file-based write locking is enforced:
+#   True  = Enforce file lock for shared LAN database (multi-user safety)
+#   False = No file locking (single-user dev, or when using API mode)
+# 
+# WHEN TO USE:
+#   True:  Production with SQLite on shared network drive (current scenario)
+#   False: Local development, OR when USE_LOCAL_MODE=False (API handles concurrency)
+USE_FILE_LOCK = os.getenv("USE_FILE_LOCK", "true").lower() == "true"
 
 # Local mode settings
 # DATABASE_PATH is now dynamic (set via GUI), but can be overridden

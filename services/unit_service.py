@@ -72,33 +72,25 @@ class UnitService:
     
     def get_vacant_units(self) -> List[Unit]:
         """Get all vacant units"""
-        all_units = self.get_all_units()
-        return [unit for unit in all_units if unit.status == 'Vacant']
+        # TODO: Implement vacancy tracking in new schema
+        return []
     
     def get_occupied_units(self) -> List[Unit]:
         """Get all let units"""
-        all_units = self.get_all_units()
-        return [unit for unit in all_units if unit.status == 'Let']
+        # TODO: Implement let/vacant tracking in new schema
+        return []
     
     def get_unit_statistics(self) -> Dict[str, Any]:
         """Get statistics about all units"""
         units = self.get_all_units()
         
-        vacant = [u for u in units if u.status == 'Vacant']
-        let_units = [u for u in units if u.status == 'Let']
-        
-        total_rent = sum(u.rent_amount for u in let_units if u.rent_amount)
-        total_sqft = sum(u.square_feet for u in units if u.square_feet)
-        
+        # TODO: Update statistics for new schema
         return {
             'total_units': len(units),
-            'vacant_units': len(vacant),
-            'occupied_units': len(let_units),
-            'occupancy_rate': (len(let_units) / len(units) * 100) if units else 0,
-            'total_monthly_rent': total_rent,
-            'total_square_feet': total_sqft,
-            'units_by_type': self._group_by_type(units),
-            'units_by_status': {'Vacant': len(vacant), 'Let': len(let_units)}
+            'vacant_units': 0,
+            'let_units': 0,
+            'total_sqft': sum(u.sq_ft for u in units if u.sq_ft),
+            'total_rent': 0.0
         }
     
     def _group_by_type(self, units: List[Unit]) -> Dict[str, int]:

@@ -10,6 +10,7 @@ from repositories.base_repository import BaseRepository
 from models import User, Building, Unit, Session, AuditLog, LockStatus
 from database.db_manager import DatabaseManager, DatabaseWriteError
 from core.lock_manager import LockManager
+from config import USE_FILE_LOCK
 
 
 class LocalRepository(BaseRepository):
@@ -63,19 +64,28 @@ class LocalRepository(BaseRepository):
     # ==================== Lock Management ====================
     
     def acquire_lock(self, user_id: int, username: str, ip_address: Optional[str] = None) -> tuple[bool, Optional[str]]:
-        """Acquire write lock"""
+        """Acquire write lock (bypassed if USE_FILE_LOCK is False)"""
+        if not USE_FILE_LOCK:
+            return True, "file_lock_disabled"
+        
         success, error_msg = self.lock_manager.acquire_write_lock(user_id, username)
         if success:
             return True, str(self.lock_manager.current_session_id)
         return False, error_msg
     
     def release_lock(self, session_id: str) -> bool:
-        """Release write lock"""
+        """Release write lock (bypassed if USE_FILE_LOCK is False)"""
+        if not USE_FILE_LOCK:
+            return True
+        
         self.lock_manager.release_write_lock()
         return True
     
     def get_lock_status(self) -> LockStatus:
-        """Get current lock status"""
+        """Get current lock status (bypassed if USE_FILE_LOCK is False)"""
+        if not USE_FILE_LOCK:
+            return LockStatus(is_locked=False, can_force_unlock=False)
+        
         lock_holder = self.lock_manager._get_current_lock_holder()
         
         if lock_holder:
@@ -99,7 +109,10 @@ class LocalRepository(BaseRepository):
         return True
     
     def verify_session(self, session_id: str) -> bool:
-        """Verify session is still valid"""
+        """Verify session is still valid (bypassed if USE_FILE_LOCK is False)"""
+        if not USE_FILE_LOCK:
+            return True
+        
         return self.lock_manager.verify_write_lock()
     
     # ==================== Buildings ====================
@@ -112,6 +125,10 @@ class LocalRepository(BaseRepository):
     def get_all_buildings(self) -> List[dict]:
         """Get all buildings (returns raw dicts for backward compatibility)"""
         return self.db_manager.get_all_buildings()
+    
+    def get_all_current_buildings(self) -> List[dict]:
+        """Get all buildings with current capital valuations (returns raw dicts)"""
+        return self.db_manager.get_all_current_buildings()
     
     def get_building_by_id(self, building_id: int) -> Optional[dict]:
         """Get building by ID"""
@@ -208,6 +225,48 @@ class LocalRepository(BaseRepository):
     def get_audit_log(self, limit: int = 100) -> List[dict]:
         """Get audit log entries (returns raw dicts for backward compatibility)"""
         return self.db_manager.get_audit_log(limit)
+    
+    # ==================== RBAC - Roles and Permissions ====================
+    
+    def get_all_roles(self) -> List[dict]:
+        """Get all roles"""
+        return self.db_manager.get_all_roles()
+    
+    def get_all_permissions(self) -> List[dict]:
+        """Get all permissions"""
+        return self.db_manager.get_all_permissions()
+    
+    def get_role_permissions(self) -> List[dict]:
+        """Get all role-permission mappings"""
+        return self.db_manager.get_role_permissions()
+    
+    def grant_role_permission(self, role_id: int, permission_id: int, user_id: int) -> bool:
+        """Grant a permission to a role"""
+        return self.db_manager.grant_role_permission(role_id, permission_id, user_id)
+    
+    def revoke_role_permission(self, role_id: int, permission_id: int, user_id: int) -> bool:
+        """Revoke a permission from a role"""
+        return self.db_manager.revoke_role_permission(role_id, permission_id, user_id)
+    
+    def get_user_roles(self) -> List[dict]:
+        """Get all user-role assignments"""
+        return self.db_manager.get_user_roles()
+    
+    def assign_user_role(self, user_id: int, role_id: int, assigned_by: int) -> bool:
+        """Assign a role to a user"""
+        return self.db_manager.assign_user_role(user_id, role_id, assigned_by)
+    
+    def unassign_user_role(self, user_id: int, role_id: int, unassigned_by: int) -> bool:
+        """Unassign a role from a user"""
+        return self.db_manager.unassign_user_role(user_id, role_id, unassigned_by)
+    
+    def user_has_role(self, user_id: int, role_name: str) -> bool:
+        """Check if user has a specific role"""
+        return self.db_manager.user_has_role(user_id, role_name)
+    
+    def user_has_permission(self, user_id: int, permission_name: str) -> bool:
+        """Check if user has a specific permission"""
+        return self.db_manager.user_has_permission(user_id, permission_name)
     
     # ==================== Cleanup ====================
     

@@ -30,8 +30,7 @@ class AuthService:
                 self._current_user = User(
                     id=user_result['id'],
                     username=user_result['username'],
-                    display_name=user_result['display_name'],
-                    is_admin=user_result.get('is_admin', False)
+                    display_name=user_result['display_name']
                 )
             return self._current_user
         return None
@@ -42,8 +41,7 @@ class AuthService:
         return [User(
             id=u['id'],
             username=u['username'],
-            display_name=u['display_name'],
-            is_admin=u.get('is_admin', False)
+            display_name=u['display_name']
         ) for u in users_data]
     
     def acquire_write_lock(self, user_id: int, username: str) -> Tuple[bool, str]:
@@ -126,8 +124,22 @@ class AuthService:
         return False
     
     def is_admin(self) -> bool:
-        """Check if current user is admin"""
-        return self._current_user.is_admin if self._current_user else False
+        """Check if current user has Admin role"""
+        if not self._current_user:
+            return False
+        return self.repository.user_has_role(self._current_user.id, 'Admin')
+    
+    def has_role(self, role_name: str) -> bool:
+        """Check if current user has a specific role"""
+        if not self._current_user:
+            return False
+        return self.repository.user_has_role(self._current_user.id, role_name)
+    
+    def has_permission(self, permission_name: str) -> bool:
+        """Check if current user has a specific permission"""
+        if not self._current_user:
+            return False
+        return self.repository.user_has_permission(self._current_user.id, permission_name)
     
     def logout(self):
         """Logout current user"""

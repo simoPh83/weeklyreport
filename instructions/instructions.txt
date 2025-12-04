@@ -11,7 +11,7 @@ Xcode Command Line Tools: xcode-select --install
 Download from: https://git-scm.com/download/mac
 
 1) Clone the Repository
-git clone https://github.com/simoePh83/color-picker.git
+git clone https://github.com/simoPh83/color-picker.git
 cd color-picker
 
 2) Create the Virtual ENVIRONMENT
@@ -40,7 +40,7 @@ pyinstaller color_picker_macos.spec --clean
 
 
 
-/////////////////////////
+///////////////////////// GIT COMMANDS //////////////////////
 
 
 COMMIT A version
@@ -48,6 +48,26 @@ COMMIT A version
 git add .
 git commit -m "MacOs screen capture fixed"
 git push
+
+
+# Fetch latest info from remote
+git fetch origin
+
+# List all remote branches
+git branch -r
+
+# List all branches (local and remote)
+git branch -a
+
+# Create local dev branch and switch to it, tracking the remote dev branch
+# Create a new branch from a remote branch
+git checkout -b local-name origin/remote-branch
+git checkout -b dev origin/dev
+
+# switch between branches
+git checkout main
+git checkout dev
+
 
 
 when pulling from other devices

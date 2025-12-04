@@ -4,7 +4,7 @@ Loads main_window.ui and manages the main application interface
 """
 import sys
 from PyQt6 import uic
-from PyQt6.QtWidgets import QMainWindow, QMessageBox, QTableWidgetItem, QHeaderView, QProgressBar, QWidget, QHBoxLayout, QApplication
+from PyQt6.QtWidgets import QMainWindow, QMessageBox, QTableWidgetItem, QHeaderView, QProgressBar, QWidget, QHBoxLayout, QApplication, QCheckBox
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon
 from pathlib import Path
@@ -14,6 +14,7 @@ from .building_form import BuildingFormDialog
 from .unit_form import UnitFormDialog
 from .db_path_dialog import DatabasePathDialog
 from utils import save_database_path, save_theme_preference, load_theme_preference
+from config import USE_FILE_LOCK
 
 
 class MainWindow(QMainWindow):
@@ -65,6 +66,9 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         """Setup UI elements"""
+        # Initialize permissions flags
+        self.has_permissions_write = False
+        
         # Update user label
         self.userLabel.setText(f"User: {self.current_user['display_name']}")
         
@@ -76,6 +80,10 @@ class MainWindow(QMainWindow):
         self.setup_buildings_table()
         self.setup_units_table()
         self.setup_audit_table()
+        self.setup_permissions_tables()
+        
+        # Check permissions and configure permissions tab visibility
+        self.configure_permissions_tab()
         
         # Setup theme toggle button
         self.setup_theme_toggle()
@@ -99,6 +107,8 @@ class MainWindow(QMainWindow):
         
         # Audit tab
         self.refreshAuditButton.clicked.connect(self.refresh_audit)
+        
+        # Permissions tab - Set buttons will be connected in configure_permissions_tab
         
         # Menu actions
         self.actionExit.triggered.connect(self.close)
@@ -125,9 +135,9 @@ class MainWindow(QMainWindow):
     
     def setup_buildings_table(self):
         """Setup buildings table"""
-        self.buildingsTable.setColumnCount(8)
+        self.buildingsTable.setColumnCount(9)
         self.buildingsTable.setHorizontalHeaderLabels([
-            'ID', 'Name', 'Address', 'City', 'State', 'Zip Code', 'Total Units', 'Occupancy %'
+            'ID', 'Property Code', 'Property Name', 'Address', 'Postcode', 'Client', 'Acquired', 'Capital Valuation (£)', 'Occupancy %'
         ])
         self.buildingsTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.buildingsTable.setColumnHidden(0, True)  # Hide ID column
@@ -137,13 +147,31 @@ class MainWindow(QMainWindow):
         
         # Enable sorting
         self.buildingsTable.setSortingEnabled(True)
+        
+        # Fix scrollbar - apply stylesheet to ensure scrollbar starts below header
+        self.buildingsTable.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #d0d0d0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget QTableCornerButton::section {
+                background: palette(base);
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                width: 14px;
+                margin: 0px 0px 0px 0px;
+            }
+        """)
     
     def setup_units_table(self):
         """Setup units table"""
-        self.unitsTable.setColumnCount(9)
+        self.unitsTable.setColumnCount(5)
         self.unitsTable.setHorizontalHeaderLabels([
-            'ID', 'Building', 'Unit Number', 'Floor', 'Type', 
-            'Sq Ft', 'Rent', 'Status', 'Tenant'
+            'ID', 'Building', 'Unit Name', 'Sq Ft', 'Type'
         ])
         self.unitsTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.unitsTable.setColumnHidden(0, True)  # Hide ID column
@@ -153,6 +181,25 @@ class MainWindow(QMainWindow):
         
         # Enable sorting
         self.unitsTable.setSortingEnabled(True)
+        
+        # Fix scrollbar - apply stylesheet to ensure scrollbar starts below header
+        self.unitsTable.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #d0d0d0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget QTableCornerButton::section {
+                background: palette(base);
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                width: 14px;
+                margin: 0px 0px 0px 0px;
+            }
+        """)
     
     def setup_audit_table(self):
         """Setup audit log table"""
@@ -167,6 +214,103 @@ class MainWindow(QMainWindow):
         
         # Enable sorting
         self.auditTable.setSortingEnabled(True)
+        
+        # Fix scrollbar - apply stylesheet to ensure scrollbar starts below header
+        self.auditTable.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #d0d0d0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget QTableCornerButton::section {
+                background: palette(base);
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                width: 14px;
+                margin: 0px 0px 0px 0px;
+            }
+        """)
+    
+    def setup_permissions_tables(self):
+        """Setup role permissions and user roles tables"""
+        # Setup role permissions table
+        self.rolePermissionsTable.clear()
+        self.rolePermissionsTable.setEditTriggers(self.rolePermissionsTable.EditTrigger.NoEditTriggers)
+        
+        # Setup user roles table  
+        self.userRolesTable.clear()
+        self.userRolesTable.setEditTriggers(self.userRolesTable.EditTrigger.NoEditTriggers)
+        
+        # Apply consistent styling
+        for table in [self.rolePermissionsTable, self.userRolesTable]:
+            table.setStyleSheet("""
+                QTableWidget {
+                    gridline-color: #d0d0d0;
+                }
+                QTableWidget::item {
+                    padding: 5px;
+                }
+                QTableWidget QTableCornerButton::section {
+                    background: palette(base);
+                    border: none;
+                }
+                QScrollBar:vertical {
+                    border: none;
+                    width: 14px;
+                    margin: 0px 0px 0px 0px;
+                }
+            """)
+    
+    def configure_permissions_tab(self):
+        """Configure permissions tab visibility and edit permissions based on user permissions"""
+        # Check if user has view permission
+        has_view = self.auth_service.is_admin() or \
+                   self.auth_service.has_permission('view_users_permissions')
+        
+        # Find the permissions tab index
+        permissions_tab_index = -1
+        for i in range(self.tabWidget.count()):
+            if self.tabWidget.widget(i).objectName() == 'permissionsTab':
+                permissions_tab_index = i
+                break
+        
+        # Hide/show tab based on view permission
+        if permissions_tab_index >= 0:
+            self.tabWidget.setTabVisible(permissions_tab_index, has_view)
+        
+        # If user has view permission, configure edit permissions
+        if has_view:
+            has_write = self.auth_service.is_admin() or \
+                       self.auth_service.has_permission('write_users_permissions')
+            
+            # Check if user also has write lock (only if file locking is enabled)
+            if USE_FILE_LOCK:
+                has_write_lock = self.auth_service.verify_write_lock()
+                effective_write = has_write and has_write_lock
+            else:
+                effective_write = has_write  # No lock check needed
+            
+            # Store pending changes for batch update
+            self.pending_role_permission_changes = {}  # (role_id, perm_id): True/False
+            self.pending_user_role_changes = {}  # (user_id, role_id): True/False
+            
+            # Refresh tables initially
+            self.refresh_role_permissions()
+            self.refresh_user_roles()
+            
+            # Connect Set button signals
+            self.setRolePermissionsButton.clicked.connect(self.apply_role_permission_changes)
+            self.setUserRolesButton.clicked.connect(self.apply_user_role_changes)
+            
+            # Enable/disable Set buttons based on both permission and write lock
+            self.setRolePermissionsButton.setEnabled(effective_write)
+            self.setUserRolesButton.setEnabled(effective_write)
+            
+            # Store permissions for later use (button enabling/disabling)
+            self.has_permissions_write = has_write
     
     def on_building_header_clicked(self, logical_index: int):
         """Handle building table header clicks for custom occupancy sorting"""
@@ -188,6 +332,15 @@ class MainWindow(QMainWindow):
     
     def check_lock_status(self):
         """Check database lock status and update UI"""
+        # If file locking is disabled, always grant write access
+        if not USE_FILE_LOCK:
+            self.is_read_only = False
+            self.lockStatusLabel.setText("Database Status: Read-Write (File lock disabled)")
+            self.lockStatusLabel.setStyleSheet("color: green; font-weight: bold;")
+            self.enable_edit_buttons(True)
+            return
+        
+        # File locking is enabled - check lock status
         has_write_lock = self.auth_service.verify_write_lock()
         
         if has_write_lock:
@@ -219,6 +372,38 @@ class MainWindow(QMainWindow):
         self.addUnitButton.setEnabled(enabled)
         self.editUnitButton.setEnabled(enabled)
         self.deleteUnitButton.setEnabled(enabled)
+        
+        # Permissions tab - only enable if user has both write lock AND write permission
+        if hasattr(self, 'setRolePermissionsButton') and hasattr(self, 'setUserRolesButton'):
+            has_perm_write = getattr(self, 'has_permissions_write', False)
+            permissions_enabled = enabled and has_perm_write
+            self.setRolePermissionsButton.setEnabled(permissions_enabled)
+            self.setUserRolesButton.setEnabled(permissions_enabled)
+            
+            # Also disable/enable checkboxes in permissions tables
+            self._update_permissions_checkboxes_state(permissions_enabled)
+    
+    def _update_permissions_checkboxes_state(self, enabled: bool):
+        """Update enabled state of all checkboxes in permissions tables"""
+        # Update role permissions table checkboxes
+        if hasattr(self, 'rolePermissionsTable'):
+            for row in range(self.rolePermissionsTable.rowCount()):
+                for col in range(1, self.rolePermissionsTable.columnCount()):
+                    widget = self.rolePermissionsTable.cellWidget(row, col)
+                    if widget:
+                        checkbox = widget.findChild(QCheckBox)
+                        if checkbox:
+                            checkbox.setEnabled(enabled)
+        
+        # Update user roles table checkboxes
+        if hasattr(self, 'userRolesTable'):
+            for row in range(self.userRolesTable.rowCount()):
+                for col in range(2, self.userRolesTable.columnCount()):
+                    widget = self.userRolesTable.cellWidget(row, col)
+                    if widget:
+                        checkbox = widget.findChild(QCheckBox)
+                        if checkbox:
+                            checkbox.setEnabled(enabled)
     
     def on_lock_lost_thread(self, session_id):
         """
@@ -254,6 +439,11 @@ class MainWindow(QMainWindow):
         self.refresh_buildings()
         self.refresh_units()
         self.refresh_audit()
+        
+        # Only refresh permissions if tab is visible
+        if hasattr(self, 'has_permissions_write'):
+            self.refresh_role_permissions()
+            self.refresh_user_roles()
     
     def refresh_buildings(self):
         """Refresh buildings table"""
@@ -269,12 +459,30 @@ class MainWindow(QMainWindow):
                 self.buildingsTable.insertRow(row)
                 
                 self.buildingsTable.setItem(row, 0, QTableWidgetItem(str(building.id)))
-                self.buildingsTable.setItem(row, 1, QTableWidgetItem(building.name))
-                self.buildingsTable.setItem(row, 2, QTableWidgetItem(building.address or ''))
-                self.buildingsTable.setItem(row, 3, QTableWidgetItem(building.city or ''))
-                self.buildingsTable.setItem(row, 4, QTableWidgetItem(building.state or ''))
-                self.buildingsTable.setItem(row, 5, QTableWidgetItem(building.zip_code or ''))
-                self.buildingsTable.setItem(row, 6, QTableWidgetItem(str(building.notes or '')))
+                self.buildingsTable.setItem(row, 1, QTableWidgetItem(building.property_code))
+                self.buildingsTable.setItem(row, 2, QTableWidgetItem(building.property_name or ''))
+                self.buildingsTable.setItem(row, 3, QTableWidgetItem(building.property_address or ''))
+                self.buildingsTable.setItem(row, 4, QTableWidgetItem(building.postcode or ''))
+                self.buildingsTable.setItem(row, 5, QTableWidgetItem(building.client_code or ''))
+                
+                # Format acquisition date as DD/MM/YYYY
+                acquired_text = ''
+                if building.acquisition_date:
+                    acquired_text = building.acquisition_date.strftime('%d/%m/%Y')
+                self.buildingsTable.setItem(row, 6, QTableWidgetItem(acquired_text))
+                
+                # Add capital valuation (formatted with commas and year)
+                if building.latest_valuation_amount is not None:
+                    valuation_text = f"£{building.latest_valuation_amount:,.0f}"
+                    if building.latest_valuation_year:
+                        valuation_text += f" ({building.latest_valuation_year})"
+                    valuation_item = QTableWidgetItem(valuation_text)
+                    # Store numeric value for sorting
+                    valuation_item.setData(Qt.ItemDataRole.UserRole, building.latest_valuation_amount)
+                else:
+                    valuation_item = QTableWidgetItem("N/A")
+                    valuation_item.setData(Qt.ItemDataRole.UserRole, 0)
+                self.buildingsTable.setItem(row, 7, valuation_item)
                 
                 # Add occupancy percentage with progress bar
                 occupancy_value = building.occupancy if building.occupancy is not None else 0.0
@@ -282,11 +490,11 @@ class MainWindow(QMainWindow):
                 # Create a sortable item with numeric value for sorting
                 occupancy_item = QTableWidgetItem()
                 occupancy_item.setData(Qt.ItemDataRole.DisplayRole, occupancy_value)
-                self.buildingsTable.setItem(row, 7, occupancy_item)
+                self.buildingsTable.setItem(row, 8, occupancy_item)
                 
                 # Add visual progress bar widget on top
                 progress_widget = self.create_progress_bar(occupancy_value)
-                self.buildingsTable.setCellWidget(row, 7, progress_widget)
+                self.buildingsTable.setCellWidget(row, 8, progress_widget)
             
             # Re-enable sorting
             self.buildingsTable.setSortingEnabled(True)
@@ -360,26 +568,15 @@ class MainWindow(QMainWindow):
                 
                 self.unitsTable.setItem(row, 0, QTableWidgetItem(str(unit.id)))
                 self.unitsTable.setItem(row, 1, QTableWidgetItem(unit.building_name or ''))
-                self.unitsTable.setItem(row, 2, QTableWidgetItem(unit.unit_number))
-                self.unitsTable.setItem(row, 3, QTableWidgetItem(str(unit.floor) if unit.floor else ''))
-                self.unitsTable.setItem(row, 4, QTableWidgetItem(unit.unit_type or 'Office'))
+                self.unitsTable.setItem(row, 2, QTableWidgetItem(unit.unit_name or ''))
                 
-                # Square feet - store numeric value for sorting, display formatted text
+                # Square feet
                 sqft_item = QTableWidgetItem()
-                if unit.square_feet:
-                    sqft_item.setData(Qt.ItemDataRole.DisplayRole, unit.square_feet)  # Numeric value for sorting
-                    sqft_item.setText(f"{unit.square_feet:,.0f}")  # Formatted display with thousand separators
-                self.unitsTable.setItem(row, 5, sqft_item)
+                if unit.sq_ft:
+                    sqft_item.setData(Qt.ItemDataRole.DisplayRole, unit.sq_ft)
+                self.unitsTable.setItem(row, 3, sqft_item)
                 
-                # Rent amount - store numeric value for sorting, display formatted text
-                rent_item = QTableWidgetItem()
-                if unit.rent_amount:
-                    rent_item.setData(Qt.ItemDataRole.DisplayRole, unit.rent_amount)  # Numeric value for sorting
-                    rent_item.setText(f"£{unit.rent_amount:,.2f}")  # Formatted display with thousand separators
-                self.unitsTable.setItem(row, 6, rent_item)
-                
-                self.unitsTable.setItem(row, 7, QTableWidgetItem(unit.status or 'Vacant'))
-                self.unitsTable.setItem(row, 8, QTableWidgetItem(unit.tenant_name or ''))
+                self.unitsTable.setItem(row, 4, QTableWidgetItem(unit.unit_type_name or ''))
             
             # Re-enable sorting
             self.unitsTable.setSortingEnabled(True)
@@ -545,7 +742,7 @@ class MainWindow(QMainWindow):
     
     def force_unlock(self):
         """Force unlock database (admin only)"""
-        if not self.current_user.get('is_admin'):
+        if not self.auth_service.is_admin():
             QMessageBox.warning(
                 self,
                 "Permission Denied",
@@ -605,7 +802,7 @@ class MainWindow(QMainWindow):
             f"Database: {db_name}\n"
             f"Full Path: {self.db_path}\n\n"
             f"Current User: {self.current_user['display_name']}\n"
-            f"Admin: {'Yes' if self.current_user.get('is_admin') else 'No'}"
+            f"Admin: {'Yes' if self.auth_service.is_admin() else 'No'}"
         )
     
     def setup_theme_toggle(self):
@@ -687,3 +884,264 @@ class MainWindow(QMainWindow):
             self.auth_service.release_write_lock(self.current_user['id'])
         
         event.accept()
+    
+    # ==================== Permissions Management ====================
+    
+    def refresh_role_permissions(self):
+        """Refresh role permissions table with checkboxes"""
+        try:
+            # Get all roles, permissions, and current mappings
+            roles = self.auth_service.repository.get_all_roles()
+            permissions = self.auth_service.repository.get_all_permissions()
+            role_perms = self.auth_service.repository.get_role_permissions()
+            
+            # Create a set of (role_id, permission_id) for quick lookup
+            granted = {(rp['role_id'], rp['permission_id']) for rp in role_perms}
+            
+            # Setup table
+            self.rolePermissionsTable.setRowCount(len(roles))
+            self.rolePermissionsTable.setColumnCount(len(permissions) + 1)
+            
+            # Set headers
+            headers = ['Role'] + [p['name'] for p in permissions]
+            self.rolePermissionsTable.setHorizontalHeaderLabels(headers)
+            
+            # Populate table
+            for row, role in enumerate(roles):
+                # Role name (read-only)
+                role_item = QTableWidgetItem(role['name'])
+                role_item.setFlags(role_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.rolePermissionsTable.setItem(row, 0, role_item)
+                
+                # Permission checkboxes
+                for col, permission in enumerate(permissions, start=1):
+                    checkbox_widget = QWidget()
+                    checkbox = QCheckBox()
+                    checkbox.setChecked((role['id'], permission['id']) in granted)
+                    # Enable only if user has permission AND write lock (if file locking enabled)
+                    if USE_FILE_LOCK:
+                        has_lock = self.auth_service.verify_write_lock()
+                        effective_write = getattr(self, 'has_permissions_write', False) and has_lock
+                    else:
+                        effective_write = getattr(self, 'has_permissions_write', False)
+                    checkbox.setEnabled(effective_write)
+                    
+                    # Connect checkbox to track pending changes
+                    checkbox.stateChanged.connect(
+                        lambda state, r=role['id'], p=permission['id']: 
+                        self.on_role_permission_checkbox_changed(r, p, state)
+                    )
+                    
+                    # Center the checkbox
+                    layout = QHBoxLayout(checkbox_widget)
+                    layout.addWidget(checkbox)
+                    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                    
+                    self.rolePermissionsTable.setCellWidget(row, col, checkbox_widget)
+            
+            # Resize columns
+            self.rolePermissionsTable.resizeColumnsToContents()
+            self.rolePermissionsTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to refresh role permissions: {str(e)}")
+    
+    def on_role_permission_checkbox_changed(self, role_id: int, permission_id: int, state: int):
+        """Track role permission checkbox changes for batch update"""
+        is_checked = (state == Qt.CheckState.Checked.value)
+        self.pending_role_permission_changes[(role_id, permission_id)] = is_checked
+    
+    def apply_role_permission_changes(self):
+        """Apply all pending role permission changes after confirmation"""
+        if not self.pending_role_permission_changes:
+            QMessageBox.information(self, "No Changes", "No changes to apply.")
+            return
+        
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            "Confirm Changes",
+            f"You are about to apply {len(self.pending_role_permission_changes)} role permission change(s).\n\n"
+            "Do you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        # Apply changes
+        try:
+            success_count = 0
+            fail_count = 0
+            
+            for (role_id, permission_id), is_granted in self.pending_role_permission_changes.items():
+                try:
+                    if is_granted:
+                        success = self.auth_service.repository.grant_role_permission(
+                            role_id, permission_id, self.current_user['id']
+                        )
+                    else:
+                        success = self.auth_service.repository.revoke_role_permission(
+                            role_id, permission_id, self.current_user['id']
+                        )
+                    
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                except Exception as e:
+                    print(f"Error updating role permission: {e}")
+                    fail_count += 1
+            
+            # Clear pending changes
+            self.pending_role_permission_changes.clear()
+            
+            # Refresh table to show actual state
+            self.refresh_role_permissions()
+            
+            # Show result
+            if fail_count == 0:
+                QMessageBox.information(self, "Success", 
+                    f"Successfully applied {success_count} change(s).")
+            else:
+                QMessageBox.warning(self, "Partial Success",
+                    f"Applied {success_count} change(s), {fail_count} failed.")
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to apply changes: {str(e)}")
+            self.refresh_role_permissions()
+    
+    def refresh_user_roles(self):
+        """Refresh user roles table with checkboxes"""
+        try:
+            # Get all users, roles, and current assignments
+            users = self.auth_service.repository.get_all_users()
+            roles = self.auth_service.repository.get_all_roles()
+            user_roles = self.auth_service.repository.get_user_roles()
+            
+            # Create a set of (user_id, role_id) for quick lookup
+            assigned = {(ur['user_id'], ur['role_id']) for ur in user_roles}
+            
+            # Setup table
+            self.userRolesTable.setRowCount(len(users))
+            self.userRolesTable.setColumnCount(len(roles) + 2)
+            
+            # Set headers
+            headers = ['Username', 'Display Name'] + [r['name'] for r in roles]
+            self.userRolesTable.setHorizontalHeaderLabels(headers)
+            
+            # Populate table
+            for row, user in enumerate(users):
+                # Username (read-only)
+                username_item = QTableWidgetItem(user['username'])
+                username_item.setFlags(username_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.userRolesTable.setItem(row, 0, username_item)
+                
+                # Display name (read-only)
+                display_item = QTableWidgetItem(user['display_name'])
+                display_item.setFlags(display_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.userRolesTable.setItem(row, 1, display_item)
+                
+                # Role checkboxes
+                for col, role in enumerate(roles, start=2):
+                    checkbox_widget = QWidget()
+                    checkbox = QCheckBox()
+                    checkbox.setChecked((user['id'], role['id']) in assigned)
+                    # Enable only if user has permission AND write lock (if file locking enabled)
+                    if USE_FILE_LOCK:
+                        has_lock = self.auth_service.verify_write_lock()
+                        effective_write = getattr(self, 'has_permissions_write', False) and has_lock
+                    else:
+                        effective_write = getattr(self, 'has_permissions_write', False)
+                    checkbox.setEnabled(effective_write)
+                    
+                    # Connect checkbox to track pending changes
+                    checkbox.stateChanged.connect(
+                        lambda state, u=user['id'], r=role['id']: 
+                        self.on_user_role_checkbox_changed(u, r, state)
+                    )
+                    
+                    # Center the checkbox
+                    layout = QHBoxLayout(checkbox_widget)
+                    layout.addWidget(checkbox)
+                    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                    
+                    self.userRolesTable.setCellWidget(row, col, checkbox_widget)
+            
+            # Resize columns
+            self.userRolesTable.resizeColumnsToContents()
+            self.userRolesTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+            self.userRolesTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to refresh user roles: {str(e)}")
+    
+    def on_user_role_checkbox_changed(self, user_id: int, role_id: int, state: int):
+        """Track user role checkbox changes for batch update"""
+        is_checked = (state == Qt.CheckState.Checked.value)
+        self.pending_user_role_changes[(user_id, role_id)] = is_checked
+    
+    def apply_user_role_changes(self):
+        """Apply all pending user role changes after confirmation"""
+        if not self.pending_user_role_changes:
+            QMessageBox.information(self, "No Changes", "No changes to apply.")
+            return
+        
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            "Confirm Changes",
+            f"You are about to apply {len(self.pending_user_role_changes)} user role change(s).\n\n"
+            "Do you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        # Apply changes
+        try:
+            success_count = 0
+            fail_count = 0
+            
+            for (user_id, role_id), is_assigned in self.pending_user_role_changes.items():
+                try:
+                    if is_assigned:
+                        success = self.auth_service.repository.assign_user_role(
+                            user_id, role_id, self.current_user['id']
+                        )
+                    else:
+                        success = self.auth_service.repository.unassign_user_role(
+                            user_id, role_id, self.current_user['id']
+                        )
+                    
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                except Exception as e:
+                    print(f"Error updating user role: {e}")
+                    fail_count += 1
+            
+            # Clear pending changes
+            self.pending_user_role_changes.clear()
+            
+            # Refresh table to show actual state
+            self.refresh_user_roles()
+            
+            # Show result
+            if fail_count == 0:
+                QMessageBox.information(self, "Success", 
+                    f"Successfully applied {success_count} change(s).")
+            else:
+                QMessageBox.warning(self, "Partial Success",
+                    f"Applied {success_count} change(s), {fail_count} failed.")
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to apply changes: {str(e)}")
+            self.refresh_user_roles()
+

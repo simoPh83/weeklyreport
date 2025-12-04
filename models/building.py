@@ -5,15 +5,19 @@ from pydantic import BaseModel, Field
 
 
 class Building(BaseModel):
-    """Building model - database agnostic"""
+    """Building model - UK commercial property"""
     id: Optional[int] = None
-    name: str = Field(..., min_length=1)
-    address: Optional[str] = Field(None, min_length=1)  # Made optional
-    city: Optional[str] = Field(None, min_length=1)  # Made optional
-    state: Optional[str] = Field(None, min_length=1, max_length=50)
-    zip_code: Optional[str] = Field(None, min_length=2, max_length=20)
+    property_code: str = Field(..., min_length=6, max_length=6, pattern=r'^\d{6}$')
+    property_name: Optional[str] = None
+    property_address: str = Field(..., min_length=1)
+    postcode: str = Field(..., min_length=1)
+    client_code: str = Field(..., min_length=1, max_length=10)
+    acquisition_date: Optional[date] = None
+    disposal_date: Optional[date] = None
     notes: Optional[str] = None
-    occupancy: Optional[float] = None  # Occupancy percentage (0-100)
+    occupancy: Optional[float] = None  # Occupancy percentage (0-100), calculated field
+    latest_valuation_year: Optional[int] = None  # Most recent valuation year
+    latest_valuation_amount: Optional[float] = None  # Most recent valuation amount (£)
     
     class Config:
         from_attributes = True
@@ -21,11 +25,13 @@ class Building(BaseModel):
 
 class BuildingCreate(BaseModel):
     """Building creation request"""
-    name: str = Field(..., min_length=1)
-    address: Optional[str] = Field(None, min_length=1)
-    city: Optional[str] = Field(None, min_length=1)
-    state: Optional[str] = Field(None, min_length=1, max_length=50)
-    zip_code: Optional[str] = Field(None, min_length=2, max_length=20)
+    property_code: str = Field(..., min_length=6, max_length=6, pattern=r'^\d{6}$')
+    property_name: Optional[str] = None
+    property_address: str = Field(..., min_length=1)
+    postcode: str = Field(..., min_length=1)
+    client_code: str = Field(..., min_length=1, max_length=10)
+    acquisition_date: Optional[date] = None
+    disposal_date: Optional[date] = None
     notes: Optional[str] = None
 
 
