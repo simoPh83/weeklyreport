@@ -19,6 +19,19 @@ class BuildingService:
         buildings_data = self.repository.get_all_current_buildings()
         return [Building(**building) for building in buildings_data]
     
+    def get_buildings_with_occupancy(self, reference_date: Optional[str] = None) -> List[Building]:
+        """Get all buildings with occupancy data for a specific date"""
+        snapshot = self.repository.get_property_snapshot(reference_date)
+        buildings = []
+        for building_row in snapshot['buildings']:
+            # Convert Row to dict
+            building_data = dict(building_row)
+            # Use occupancy_pct if occupancy not set
+            if 'occupancy' not in building_data or building_data['occupancy'] is None:
+                building_data['occupancy'] = building_data.get('occupancy_pct')
+            buildings.append(Building(**building_data))
+        return buildings
+    
     def get_building_by_id(self, building_id: int) -> Optional[Building]:
         """Get building by ID"""
         building_data = self.repository.get_building_by_id(building_id)

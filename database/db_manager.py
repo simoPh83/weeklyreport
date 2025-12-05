@@ -82,11 +82,8 @@ class DatabaseManager:
                     building_id INTEGER NOT NULL,
                     unit_number TEXT NOT NULL,
                     floor INTEGER,
-                    unit_type TEXT DEFAULT 'Office',  -- 'Office' or 'Retail'
-                    square_feet REAL,
-                    rent_amount REAL,
+                    unit_type TEXT DEFAULT 'Office',
                     status TEXT DEFAULT 'Vacant',
-                    tenant_name TEXT,
                     lease_start DATE,
                     lease_end DATE,
                     notes TEXT,
@@ -382,6 +379,107 @@ class DatabaseManager:
             
             return buildings
     
+    def get_property_snapshot(self, reference_date: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get complete property snapshot for a specific date.
+        Returns hierarchical data with buildings, units, leases, and occupancy %.
+        Can be used to populate both buildings tab and units tab.
+        
+        Args:
+            reference_date: Date to query (YYYY-MM-DD format). Defaults to today.
+            
+        Returns:
+            Dictionary with:
+            - 'buildings': List of buildings with occupancy stats
+            - 'units': List of all units with lease information
+        """
+        if reference_date is None:
+            reference_date = datetime.now().strftime('%Y-%m-%d')
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get buildings with occupancy calculation
+            cursor.execute("""
+                SELECT b.id,
+                       b.property_code,
+                       b.property_name,
+                       b.property_address,
+                       b.postcode,
+                       b.client_code,
+                       b.acquisition_date,
+                       b.disposal_date,
+                       COUNT(DISTINCT u.id) as total_units,
+                       COUNT(DISTINCT CASE WHEN l.id IS NOT NULL THEN u.id END) as let_units,
+                       ROUND(
+                           CAST(COUNT(DISTINCT CASE WHEN l.id IS NOT NULL THEN u.id END) AS REAL) * 100.0 / 
+                           NULLIF(COUNT(DISTINCT u.id), 0), 
+                           1
+                       ) as occupancy_pct,
+                       SUM(CASE WHEN l.id IS NOT NULL THEN usf.sq_ft ELSE 0 END) as let_sqft,
+                       SUM(usf.sq_ft) as total_sqft,
+                       SUM(CASE WHEN l.id IS NOT NULL THEN l.rent_pa ELSE 0 END) as total_rent_pa,
+                       cv.valuation_year as latest_valuation_year,
+                       cv.valuation_amount as latest_valuation_amount
+                FROM buildings b
+                LEFT JOIN units u ON b.id = u.building_id AND u.is_current = 1
+                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id 
+                    AND (date(?) BETWEEN date(usf.effective_from) AND COALESCE(date(usf.effective_to), '9999-12-31')
+                         OR usf.is_current = 1)
+                LEFT JOIN leases l ON u.id = l.unit_id 
+                    AND date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
+                LEFT JOIN (
+                    SELECT building_id, 
+                           valuation_year, 
+                           valuation_amount,
+                           ROW_NUMBER() OVER (PARTITION BY building_id ORDER BY valuation_year DESC) as rn
+                    FROM capital_valuations
+                ) cv ON b.id = cv.building_id AND cv.rn = 1
+                GROUP BY b.id, b.property_code, b.property_name, b.property_address, 
+                         b.postcode, b.client_code, b.acquisition_date, b.disposal_date,
+                         cv.valuation_year, cv.valuation_amount
+                ORDER BY b.property_name
+            """, (reference_date, reference_date))
+            buildings = cursor.fetchall()
+            
+            # Get detailed unit and lease information
+            cursor.execute("""
+                SELECT u.id as unit_id,
+                       u.unit_name,
+                       usf.sq_ft as unit_square_footage,
+                       u.unit_type_id,
+                       b.id as building_id,
+                       b.property_name,
+                       b.property_address,
+                       b.property_code,
+                       ut.description as unit_type,
+                       l.id as lease_id,
+                       l.tenant_id,
+                       t.tenant_name,
+                       l.rent_pa,
+                       l.start_date,
+                       l.break_date,
+                       l.expiry_date
+                FROM units u
+                JOIN buildings b ON u.building_id = b.id
+                LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
+                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id
+                    AND (date(?) BETWEEN date(usf.effective_from) AND COALESCE(date(usf.effective_to), '9999-12-31')
+                         OR usf.is_current = 1)
+                LEFT JOIN leases l ON u.id = l.unit_id 
+                    AND date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
+                LEFT JOIN tenants t ON l.tenant_id = t.id
+                WHERE u.is_current = 1
+                ORDER BY b.property_name, u.unit_name
+            """, (reference_date, reference_date))
+            units = cursor.fetchall()
+            
+            return {
+                'buildings': buildings,
+                'units': units,
+                'reference_date': reference_date
+            }
+    
     def get_building_by_id(self, building_id: int) -> Optional[Dict[str, Any]]:
         """Get building by ID"""
         with self.get_connection() as conn:
@@ -480,10 +578,14 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, b.property_name as building_name, ut.description as unit_type_name
+                SELECT u.*, 
+                       usf.sq_ft,
+                       b.property_name as building_name, 
+                       ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
+                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
                 WHERE u.building_id = ?
                 ORDER BY u.unit_name
             """, (building_id,))
@@ -494,10 +596,14 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, b.property_name as building_name, ut.description as unit_type_name
+                SELECT u.*, 
+                       usf.sq_ft,
+                       b.property_name as building_name, 
+                       ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
+                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
                 ORDER BY b.property_code, u.unit_name
             """)
             return [dict(row) for row in cursor.fetchall()]
@@ -507,10 +613,14 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, b.property_name as building_name, ut.description as unit_type_name
+                SELECT u.*, 
+                       usf.sq_ft,
+                       b.property_name as building_name, 
+                       ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
+                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
                 WHERE u.id = ?
             """, (unit_id,))
             row = cursor.fetchone()
@@ -522,19 +632,31 @@ class DatabaseManager:
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            
+            # Create unit record (without sq_ft)
             cursor.execute("""
                 INSERT INTO units (
-                    building_id, unit_name, sq_ft, unit_type_id, notes, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    building_id, unit_name, unit_type_id, created_by
+                ) VALUES (?, ?, ?, ?)
             """, (
                 data.get('building_id'),
                 data.get('unit_name'),
-                data.get('sq_ft'),
                 data.get('unit_type_id'),
-                data.get('notes'),
                 user_id
             ))
             unit_id = cursor.lastrowid
+            
+            # Create sq_ft record if provided
+            if data.get('sq_ft'):
+                cursor.execute("""
+                    INSERT INTO unit_square_footage (
+                        unit_id, sq_ft, effective_from, is_current, created_by
+                    ) VALUES (?, ?, '2020-01-01', 1, ?)
+                """, (
+                    unit_id,
+                    data.get('sq_ft'),
+                    user_id
+                ))
             
             # Log audit
             self._log_audit(conn, user_id, 'CREATE', 'units', unit_id, None, str(data))
@@ -550,29 +672,42 @@ class DatabaseManager:
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            
+            # Update unit record (without sq_ft)
             cursor.execute("""
                 UPDATE units
-                SET building_id = ?, unit_name = ?, sq_ft = ?, unit_type_id = ?, notes = ?,
+                SET building_id = ?, unit_name = ?, unit_type_id = ?,
                     updated_at = CURRENT_TIMESTAMP, updated_by = ?
                 WHERE id = ?
             """, (
                 data.get('building_id'),
                 data.get('unit_name'),
-                data.get('sq_ft'),
                 data.get('unit_type_id'),
-                data.get('floor'),
-                data.get('unit_type', 'Office'),
-                data.get('square_feet'),
-                data.get('rent_amount'),
-                data.get('status', 'Vacant'),
-                data.get('tenant_name'),
-                data.get('lease_start'),
-                data.get('sq_ft'),
-                data.get('unit_type_id'),
-                data.get('notes'),
                 user_id,
                 unit_id
             ))
+            
+            # Update sq_ft if provided and changed
+            if data.get('sq_ft') is not None:
+                old_sqft = old_data.get('sq_ft') if old_data else None
+                if old_sqft != data.get('sq_ft'):
+                    # Mark old sq_ft as not current
+                    cursor.execute("""
+                        UPDATE unit_square_footage
+                        SET is_current = 0, effective_to = DATE('now')
+                        WHERE unit_id = ? AND is_current = 1
+                    """, (unit_id,))
+                    
+                    # Insert new sq_ft record
+                    cursor.execute("""
+                        INSERT INTO unit_square_footage (
+                            unit_id, sq_ft, effective_from, is_current, created_by
+                        ) VALUES (?, ?, DATE('now'), 1, ?)
+                    """, (
+                        unit_id,
+                        data.get('sq_ft'),
+                        user_id
+                    ))
             
             # Log audit
             self._log_audit(conn, user_id, 'UPDATE', 'units', unit_id, str(old_data), str(data))
@@ -580,17 +715,308 @@ class DatabaseManager:
             conn.commit()
     
     def delete_unit(self, unit_id: int, user_id: int):
-        """Delete a unit"""
+        """Delete a unit (CASCADE will delete unit_square_footage records too)"""
         self._verify_write_permission()
         
         old_data = self.get_unit_by_id(unit_id)
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            # ON DELETE CASCADE will automatically delete unit_square_footage records
             cursor.execute("DELETE FROM units WHERE id = ?", (unit_id,))
             
             # Log audit
             self._log_audit(conn, user_id, 'DELETE', 'units', unit_id, str(old_data), None)
+            
+            conn.commit()
+    
+    # Tenant management
+    def get_all_tenants(self) -> List[Dict[str, Any]]:
+        """Get all tenants"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM tenants
+                ORDER BY tenant_name
+            """)
+            return cursor.fetchall()
+    
+    def get_tenant_by_id(self, tenant_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific tenant by ID"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM tenants WHERE id = ?", (tenant_id,))
+            return cursor.fetchone()
+    
+    def get_tenant_by_name(self, tenant_name: str) -> Optional[Dict[str, Any]]:
+        """Get a tenant by name"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM tenants WHERE tenant_name = ?", (tenant_name,))
+            return cursor.fetchone()
+    
+    def create_tenant(self, data: Dict[str, Any], user_id: int) -> int:
+        """Create a new tenant"""
+        self._verify_write_permission()
+        
+        now = datetime.now().isoformat()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO tenants (tenant_name, trading_as, b2c, category_id, notes,
+                                    created_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (data['tenant_name'], data.get('trading_as'), data.get('b2c', 0),
+                  data.get('category_id'), data.get('notes'),
+                  now, user_id))
+            
+            tenant_id = cursor.lastrowid
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'INSERT', 'tenants', tenant_id, None, str(data))
+            
+            conn.commit()
+            return tenant_id
+    
+    def update_tenant(self, tenant_id: int, data: Dict[str, Any], user_id: int):
+        """Update an existing tenant"""
+        self._verify_write_permission()
+        
+        old_data = self.get_tenant_by_id(tenant_id)
+        now = datetime.now().isoformat()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE tenants
+                SET tenant_name = ?, trading_as = ?, b2c = ?, category_id = ?, 
+                    notes = ?,
+                    updated_at = ?, updated_by = ?
+                WHERE id = ?
+            """, (data['tenant_name'], data.get('trading_as'), data.get('b2c', 0),
+                  data.get('category_id'), data.get('notes'),
+                  now, user_id, tenant_id))
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'UPDATE', 'tenants', tenant_id, str(old_data), str(data))
+            
+            conn.commit()
+    
+    def delete_tenant(self, tenant_id: int, user_id: int):
+        """Delete a tenant"""
+        self._verify_write_permission()
+        
+        old_data = self.get_tenant_by_id(tenant_id)
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM tenants WHERE id = ?", (tenant_id,))
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'DELETE', 'tenants', tenant_id, str(old_data), None)
+            
+            conn.commit()
+    
+    # Lease management
+    def get_leases(self) -> List[Dict[str, Any]]:
+        """Get all leases with tenant and unit information"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT l.*, 
+                       t.tenant_name,
+                       u.unit_name,
+                       b.property_name as building_name
+                FROM leases l
+                JOIN tenants t ON l.tenant_id = t.id
+                JOIN units u ON l.unit_id = u.id
+                JOIN buildings b ON u.building_id = b.id
+                ORDER BY l.start_date DESC
+            """)
+            return cursor.fetchall()
+    
+    def get_active_leases(self, reference_date: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get leases active on a specific date (defaults to today)"""
+        if reference_date is None:
+            reference_date = datetime.now().strftime('%Y-%m-%d')
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT l.*, 
+                       t.tenant_name,
+                       u.unit_name,
+                       b.property_name as building_name
+                FROM leases l
+                JOIN tenants t ON l.tenant_id = t.id
+                JOIN units u ON l.unit_id = u.id
+                JOIN buildings b ON u.building_id = b.id
+                WHERE date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
+                ORDER BY l.start_date DESC
+            """, (reference_date,))
+            return cursor.fetchall()
+    
+    def get_lease_by_id(self, lease_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific lease by ID"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT l.*, 
+                       t.tenant_name,
+                       u.unit_name,
+                       b.property_name as building_name
+                FROM leases l
+                JOIN tenants t ON l.tenant_id = t.id
+                JOIN units u ON l.unit_id = u.id
+                JOIN buildings b ON u.building_id = b.id
+                WHERE l.id = ?
+            """, (lease_id,))
+            return cursor.fetchone()
+    
+    def get_leases_by_unit(self, unit_id: int) -> List[Dict[str, Any]]:
+        """Get all leases for a specific unit"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT l.*, 
+                       t.tenant_name
+                FROM leases l
+                JOIN tenants t ON l.tenant_id = t.id
+                WHERE l.unit_id = ?
+                ORDER BY l.start_date DESC
+            """, (unit_id,))
+            return cursor.fetchall()
+    
+    def get_current_lease_by_unit(self, unit_id: int, reference_date: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get the active lease for a unit on a specific date (defaults to today)"""
+        if reference_date is None:
+            reference_date = datetime.now().strftime('%Y-%m-%d')
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT l.*, 
+                       t.tenant_name
+                FROM leases l
+                JOIN tenants t ON l.tenant_id = t.id
+                WHERE l.unit_id = ?
+                  AND date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
+                ORDER BY l.start_date DESC
+                LIMIT 1
+            """, (unit_id, reference_date))
+            return cursor.fetchone()
+    
+    def get_leases_by_tenant(self, tenant_id: int) -> List[Dict[str, Any]]:
+        """Get all leases for a specific tenant"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT l.*, 
+                       u.unit_name,
+                       b.property_name as building_name
+                FROM leases l
+                JOIN units u ON l.unit_id = u.id
+                JOIN buildings b ON u.building_id = b.id
+                WHERE l.tenant_id = ?
+                ORDER BY l.start_date DESC
+            """, (tenant_id,))
+            return cursor.fetchall()
+    
+    def get_units_with_leases(self, reference_date: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all current units with their lease information for a specific date (defaults to today)"""
+        if reference_date is None:
+            reference_date = datetime.now().strftime('%Y-%m-%d')
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.id as unit_id,
+                       u.unit_name,
+                       u.unit_size,
+                       u.unit_type_id,
+                       b.id as building_id,
+                       b.property_name,
+                       b.property_address,
+                       ut.type_name as unit_type,
+                       l.id as lease_id,
+                       l.tenant_id,
+                       t.tenant_name,
+                       l.rent_pa,
+                       l.start_date,
+                       l.break_date,
+                       l.expiry_date
+                FROM units u
+                LEFT JOIN buildings b ON u.building_id = b.id
+                LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
+                LEFT JOIN leases l ON u.id = l.unit_id 
+                    AND date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
+                LEFT JOIN tenants t ON l.tenant_id = t.id
+                WHERE u.is_current = 1
+                ORDER BY b.property_name, u.unit_name
+            """, (reference_date,))
+            return cursor.fetchall()
+    
+    def create_lease(self, data: Dict[str, Any], user_id: int) -> int:
+        """Create a new lease"""
+        self._verify_write_permission()
+        
+        now = datetime.now().isoformat()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO leases (tenant_id, unit_id, rent_pa, start_date, break_date, expiry_date,
+                                   bank_schedule_date, created_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (data['tenant_id'], data['unit_id'], data['rent_pa'], 
+                  data['start_date'], data.get('break_date'), data['expiry_date'],
+                  data.get('bank_schedule_date'), now, user_id))
+            
+            lease_id = cursor.lastrowid
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'INSERT', 'leases', lease_id, None, str(data))
+            
+            conn.commit()
+            return lease_id
+    
+    def update_lease(self, lease_id: int, data: Dict[str, Any], user_id: int):
+        """Update an existing lease"""
+        self._verify_write_permission()
+        
+        old_data = self.get_lease_by_id(lease_id)
+        now = datetime.now().isoformat()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE leases
+                SET tenant_id = ?, unit_id = ?, rent_pa = ?, start_date = ?, 
+                    break_date = ?, expiry_date = ?, bank_schedule_date = ?,
+                    updated_at = ?, updated_by = ?
+                WHERE id = ?
+            """, (data['tenant_id'], data['unit_id'], data['rent_pa'], 
+                  data['start_date'], data.get('break_date'), data['expiry_date'],
+                  data.get('bank_schedule_date'), now, user_id, lease_id))
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'UPDATE', 'leases', lease_id, str(old_data), str(data))
+            
+            conn.commit()
+    
+    def delete_lease(self, lease_id: int, user_id: int):
+        """Delete a lease"""
+        self._verify_write_permission()
+        
+        old_data = self.get_lease_by_id(lease_id)
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM leases WHERE id = ?", (lease_id,))
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'DELETE', 'leases', lease_id, str(old_data), None)
             
             conn.commit()
     

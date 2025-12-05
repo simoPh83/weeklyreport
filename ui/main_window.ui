@@ -407,6 +407,23 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="lettingProgressTab">
+       <attribute name="title">
+        <string>Letting Progress</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="lettingProgressTabLayout">
+        <item>
+         <widget class="QLabel" name="lettingProgressPlaceholder">
+          <property name="text">
+           <string>Letting Progress tab - Coming soon</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
       <widget class="QWidget" name="permissionsTab">
        <attribute name="title">
         <string>User Permissions</string>

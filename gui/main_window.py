@@ -66,8 +66,11 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         """Setup UI elements"""
-        # Initialize permissions flags
+        # Initialize permission flags (uniform naming: has_<feature>_read/write)
+        self.has_permissions_read = False
         self.has_permissions_write = False
+        self.has_letting_progress_read = False
+        self.has_letting_progress_write = False
         
         # Update user label
         self.userLabel.setText(f"User: {self.current_user['display_name']}")
@@ -82,8 +85,9 @@ class MainWindow(QMainWindow):
         self.setup_audit_table()
         self.setup_permissions_tables()
         
-        # Check permissions and configure permissions tab visibility
+        # Check permissions and configure tab visibility
         self.configure_permissions_tab()
+        self.configure_letting_progress_tab()
         
         # Setup theme toggle button
         self.setup_theme_toggle()
@@ -266,9 +270,13 @@ class MainWindow(QMainWindow):
     
     def configure_permissions_tab(self):
         """Configure permissions tab visibility and edit permissions based on user permissions"""
-        # Check if user has view permission
-        has_view = self.auth_service.is_admin() or \
+        # Check if user has read permission (view_users_permissions)
+        has_read = self.auth_service.is_admin() or \
                    self.auth_service.has_permission('view_users_permissions')
+        
+        # Check if user has write permission
+        has_write = self.auth_service.is_admin() or \
+                    self.auth_service.has_permission('write_users_permissions')
         
         # Find the permissions tab index
         permissions_tab_index = -1
@@ -277,15 +285,16 @@ class MainWindow(QMainWindow):
                 permissions_tab_index = i
                 break
         
-        # Hide/show tab based on view permission
+        # Hide/show tab based on read permission
         if permissions_tab_index >= 0:
-            self.tabWidget.setTabVisible(permissions_tab_index, has_view)
+            self.tabWidget.setTabVisible(permissions_tab_index, has_read)
         
-        # If user has view permission, configure edit permissions
-        if has_view:
-            has_write = self.auth_service.is_admin() or \
-                       self.auth_service.has_permission('write_users_permissions')
-            
+        # Store permissions for later use (consistent naming pattern)
+        self.has_permissions_read = has_read
+        self.has_permissions_write = has_write
+        
+        # If user has read permission, configure the tab
+        if has_read:
             # Check if user also has write lock (only if file locking is enabled)
             if USE_FILE_LOCK:
                 has_write_lock = self.auth_service.verify_write_lock()
@@ -308,9 +317,49 @@ class MainWindow(QMainWindow):
             # Enable/disable Set buttons based on both permission and write lock
             self.setRolePermissionsButton.setEnabled(effective_write)
             self.setUserRolesButton.setEnabled(effective_write)
-            
-            # Store permissions for later use (button enabling/disabling)
-            self.has_permissions_write = has_write
+    
+    def configure_letting_progress_tab(self):
+        """Configure letting progress tab visibility based on user permissions"""
+        # Check if user has read permission
+        has_read = self.auth_service.is_admin() or \
+                   self.auth_service.has_permission('read_letting_progress')
+        
+        # Check if user has write permission
+        has_write = self.auth_service.is_admin() or \
+                    self.auth_service.has_permission('write_letting_progress')
+        
+        # Find the letting progress tab index
+        letting_tab_index = -1
+        for i in range(self.tabWidget.count()):
+            if self.tabWidget.widget(i).objectName() == 'lettingProgressTab':
+                letting_tab_index = i
+                break
+        
+        # Hide/show tab based on read permission
+        if letting_tab_index >= 0:
+            self.tabWidget.setTabVisible(letting_tab_index, has_read)
+        
+        # Store permissions for later use
+        self.has_letting_progress_read = has_read
+        self.has_letting_progress_write = has_write
+        
+        # If user has read permission, setup the tab
+        if has_read:
+            # TODO: Initialize letting progress UI components
+            # For now, just update the placeholder text based on permissions
+            if hasattr(self, 'lettingProgressPlaceholder'):
+                if has_write:
+                    self.lettingProgressPlaceholder.setText(
+                        "Letting Progress\n\n"
+                        "You have READ and WRITE access.\n"
+                        "Tab implementation coming soon..."
+                    )
+                else:
+                    self.lettingProgressPlaceholder.setText(
+                        "Letting Progress\n\n"
+                        "You have READ-ONLY access.\n"
+                        "Tab implementation coming soon..."
+                    )
     
     def on_building_header_clicked(self, logical_index: int):
         """Handle building table header clicks for custom occupancy sorting"""
@@ -451,7 +500,8 @@ class MainWindow(QMainWindow):
             # Disable sorting while populating data
             self.buildingsTable.setSortingEnabled(False)
             
-            buildings = self.building_service.get_all_buildings()
+            # Use new method with occupancy calculation
+            buildings = self.building_service.get_buildings_with_occupancy()
             
             self.buildingsTable.setRowCount(0)
             for building in buildings:
@@ -484,7 +534,7 @@ class MainWindow(QMainWindow):
                     valuation_item.setData(Qt.ItemDataRole.UserRole, 0)
                 self.buildingsTable.setItem(row, 7, valuation_item)
                 
-                # Add occupancy percentage with progress bar
+                # Add occupancy percentage with progress bar (now from database)
                 occupancy_value = building.occupancy if building.occupancy is not None else 0.0
                 
                 # Create a sortable item with numeric value for sorting
@@ -559,7 +609,8 @@ class MainWindow(QMainWindow):
             # Disable sorting while populating data
             self.unitsTable.setSortingEnabled(False)
             
-            units = self.unit_service.get_all_units()
+            # Use new method with lease information
+            units = self.unit_service.get_units_with_leases()
             
             self.unitsTable.setRowCount(0)
             for unit in units:

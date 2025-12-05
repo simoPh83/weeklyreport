@@ -16,6 +16,12 @@ class Building(BaseModel):
     disposal_date: Optional[date] = None
     notes: Optional[str] = None
     occupancy: Optional[float] = None  # Occupancy percentage (0-100), calculated field
+    occupancy_pct: Optional[float] = None  # Alternative name for occupancy percentage
+    total_units: Optional[int] = None  # Total number of units
+    let_units: Optional[int] = None  # Number of let units
+    total_sqft: Optional[float] = None  # Total square footage
+    let_sqft: Optional[float] = None  # Let square footage
+    total_rent_pa: Optional[float] = None  # Total rent per annum
     latest_valuation_year: Optional[int] = None  # Most recent valuation year
     latest_valuation_amount: Optional[float] = None  # Most recent valuation amount (£)
     

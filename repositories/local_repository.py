@@ -130,6 +130,10 @@ class LocalRepository(BaseRepository):
         """Get all buildings with current capital valuations (returns raw dicts)"""
         return self.db_manager.get_all_current_buildings()
     
+    def get_property_snapshot(self, reference_date: Optional[str] = None) -> dict:
+        """Get complete property snapshot with buildings, units, leases, and occupancy"""
+        return self.db_manager.get_property_snapshot(reference_date)
+    
     def get_building_by_id(self, building_id: int) -> Optional[dict]:
         """Get building by ID"""
         row = self.db_manager.get_building_by_id(building_id)
