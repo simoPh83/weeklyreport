@@ -416,16 +416,14 @@ class DatabaseManager:
                            NULLIF(COUNT(DISTINCT u.id), 0), 
                            1
                        ) as occupancy_pct,
-                       SUM(CASE WHEN l.id IS NOT NULL THEN usf.sq_ft ELSE 0 END) as let_sqft,
-                       SUM(usf.sq_ft) as total_sqft,
+                       SUM(CASE WHEN l.id IS NOT NULL THEN uh.sq_ft ELSE 0 END) as let_sqft,
+                       SUM(uh.sq_ft) as total_sqft,
                        SUM(CASE WHEN l.id IS NOT NULL THEN l.rent_pa ELSE 0 END) as total_rent_pa,
                        cv.valuation_year as latest_valuation_year,
                        cv.valuation_amount as latest_valuation_amount
                 FROM buildings b
                 LEFT JOIN units u ON b.id = u.building_id AND u.is_current = 1
-                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id 
-                    AND (date(?) BETWEEN date(usf.effective_from) AND COALESCE(date(usf.effective_to), '9999-12-31')
-                         OR usf.is_current = 1)
+                LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
                 LEFT JOIN leases l ON u.id = l.unit_id 
                     AND date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
                 LEFT JOIN (
@@ -439,14 +437,14 @@ class DatabaseManager:
                          b.postcode, b.client_code, b.acquisition_date, b.disposal_date,
                          cv.valuation_year, cv.valuation_amount
                 ORDER BY b.property_name
-            """, (reference_date, reference_date))
+            """, (reference_date,))
             buildings = cursor.fetchall()
             
             # Get detailed unit and lease information
             cursor.execute("""
                 SELECT u.id as unit_id,
                        u.unit_name,
-                       usf.sq_ft as unit_square_footage,
+                       uh.sq_ft as unit_square_footage,
                        u.unit_type_id,
                        b.id as building_id,
                        b.property_name,
@@ -463,9 +461,10 @@ class DatabaseManager:
                 FROM units u
                 JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
-                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id
-                    AND (date(?) BETWEEN date(usf.effective_from) AND COALESCE(date(usf.effective_to), '9999-12-31')
-                         OR usf.is_current = 1)
+                LEFT JOIN unit_history uh ON u.id = uh.unit_id
+                    AND (date(?) BETWEEN date(uh.effective_from) AND COALESCE(date(uh.effective_to), '9999-12-31')
+                         OR uh.is_current = 1)
+                    AND uh.sq_ft IS NOT NULL
                 LEFT JOIN leases l ON u.id = l.unit_id 
                     AND date(?) BETWEEN date(l.start_date) AND date(l.expiry_date)
                 LEFT JOIN tenants t ON l.tenant_id = t.id
@@ -579,13 +578,13 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT u.*, 
-                       usf.sq_ft,
+                       uh.sq_ft,
                        b.property_name as building_name, 
                        ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
-                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
+                LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
                 WHERE u.building_id = ?
                 ORDER BY u.unit_name
             """, (building_id,))
@@ -597,13 +596,13 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT u.*, 
-                       usf.sq_ft,
+                       uh.sq_ft,
                        b.property_name as building_name, 
                        ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
-                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
+                LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
                 ORDER BY b.property_code, u.unit_name
             """)
             return [dict(row) for row in cursor.fetchall()]
@@ -614,13 +613,13 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT u.*, 
-                       usf.sq_ft,
+                       uh.sq_ft,
                        b.property_name as building_name, 
                        ut.description as unit_type_name
                 FROM units u
                 LEFT JOIN buildings b ON u.building_id = b.id
                 LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
-                LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
+                LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
                 WHERE u.id = ?
             """, (unit_id,))
             row = cursor.fetchone()
@@ -646,12 +645,12 @@ class DatabaseManager:
             ))
             unit_id = cursor.lastrowid
             
-            # Create sq_ft record if provided
+            # Create sq_ft record in unit_history if provided
             if data.get('sq_ft'):
                 cursor.execute("""
-                    INSERT INTO unit_square_footage (
-                        unit_id, sq_ft, effective_from, is_current, created_by
-                    ) VALUES (?, ?, '2020-01-01', 1, ?)
+                    INSERT INTO unit_history (
+                        unit_id, sq_ft, effective_from, is_current, event_type, created_by
+                    ) VALUES (?, ?, '2020-01-01', 1, 'created', ?)
                 """, (
                     unit_id,
                     data.get('sq_ft'),
@@ -693,16 +692,16 @@ class DatabaseManager:
                 if old_sqft != data.get('sq_ft'):
                     # Mark old sq_ft as not current
                     cursor.execute("""
-                        UPDATE unit_square_footage
+                        UPDATE unit_history
                         SET is_current = 0, effective_to = DATE('now')
-                        WHERE unit_id = ? AND is_current = 1
+                        WHERE unit_id = ? AND is_current = 1 AND sq_ft IS NOT NULL
                     """, (unit_id,))
                     
                     # Insert new sq_ft record
                     cursor.execute("""
-                        INSERT INTO unit_square_footage (
-                            unit_id, sq_ft, effective_from, is_current, created_by
-                        ) VALUES (?, ?, DATE('now'), 1, ?)
+                        INSERT INTO unit_history (
+                            unit_id, sq_ft, effective_from, is_current, event_type, created_by
+                        ) VALUES (?, ?, DATE('now'), 1, 'resized', ?)
                     """, (
                         unit_id,
                         data.get('sq_ft'),
@@ -715,14 +714,14 @@ class DatabaseManager:
             conn.commit()
     
     def delete_unit(self, unit_id: int, user_id: int):
-        """Delete a unit (CASCADE will delete unit_square_footage records too)"""
+        """Delete a unit (CASCADE will delete unit_history records too)"""
         self._verify_write_permission()
         
         old_data = self.get_unit_by_id(unit_id)
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # ON DELETE CASCADE will automatically delete unit_square_footage records
+            # ON DELETE CASCADE will automatically delete unit_history records
             cursor.execute("DELETE FROM units WHERE id = ?", (unit_id,))
             
             # Log audit
@@ -1218,3 +1217,149 @@ class DatabaseManager:
             """, (user_id, permission_name))
             result = cursor.fetchone()
             return result['count'] > 0 if result else False
+    
+    # ============================================================================
+    # Bank Schedule Import Methods
+    # ============================================================================
+    
+    def get_current_import(self) -> Optional[Dict[str, Any]]:
+        """Get the current bank schedule import record"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, schedule_filename, schedule_date, import_date, 
+                       imported_by, notes, units_imported, leases_imported, 
+                       sq_footage_records, created_at
+                FROM bank_schedule_imports
+                WHERE is_current = 1
+                ORDER BY schedule_date DESC
+                LIMIT 1
+            """)
+            return cursor.fetchone()
+    
+    def get_all_imports(self) -> List[Dict[str, Any]]:
+        """Get all bank schedule imports, ordered by date (most recent first)"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, schedule_filename, schedule_date, import_date, 
+                       is_current, imported_by, notes, units_imported, 
+                       leases_imported, sq_footage_records, created_at
+                FROM bank_schedule_imports
+                ORDER BY schedule_date DESC, created_at DESC
+            """)
+            return cursor.fetchall()
+    
+    def create_import(self, data: Dict[str, Any], user_id: int) -> int:
+        """Create a new bank schedule import record"""
+        self._verify_write_permission()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO bank_schedule_imports (
+                    schedule_filename, schedule_date, is_current, imported_by, 
+                    notes, units_imported, leases_imported, sq_footage_records
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data['schedule_filename'],
+                data['schedule_date'],
+                data.get('is_current', 0),
+                data.get('imported_by'),
+                data.get('notes'),
+                data.get('units_imported', 0),
+                data.get('leases_imported', 0),
+                data.get('sq_footage_records', 0)
+            ))
+            
+            import_id = cursor.lastrowid
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'INSERT', 'bank_schedule_imports', 
+                          import_id, None, str(data))
+            
+            conn.commit()
+            return import_id
+    
+    def set_current_import(self, import_id: int, user_id: int):
+        """Set a specific import as the current one (unsets all others)"""
+        self._verify_write_permission()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Unset all current flags
+            cursor.execute("UPDATE bank_schedule_imports SET is_current = 0")
+            
+            # Set the specified import as current
+            cursor.execute("""
+                UPDATE bank_schedule_imports 
+                SET is_current = 1 
+                WHERE id = ?
+            """, (import_id,))
+            
+            # Log audit
+            self._log_audit(conn, user_id, 'UPDATE', 'bank_schedule_imports',
+                          import_id, None, f"Set as current import")
+            
+            conn.commit()
+    
+    def get_current_import_display(self) -> str:
+        """
+        Get display string for current import, including [PLUS] indicator
+        if modifications have been made after the import.
+        
+        Returns: "Leasing Bank Schedule June 2025.xlsx [PLUS]" or just filename
+        """
+        current_import = self.get_current_import()
+        if not current_import:
+            return "No import data"
+        
+        filename = current_import['schedule_filename']
+        import_date = current_import['import_date']
+        
+        # Check if any modifications were made after import
+        if self.has_modifications_after(current_import['id'], import_date):
+            return f"{filename} [PLUS]"
+        else:
+            return filename
+    
+    def has_modifications_after(self, import_id: int, import_date: str) -> bool:
+        """
+        Check if any leases or unit_history records were created/modified
+        after the import date without an import_id (manual modifications).
+        
+        Args:
+            import_id: The import record ID
+            import_date: The import timestamp to compare against
+            
+        Returns: True if modifications exist, False otherwise
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check for leases created/updated after import without import_id or with different import_id
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM leases
+                WHERE (created_at > ? OR updated_at > ?)
+                  AND (import_id IS NULL OR import_id != ?)
+            """, (import_date, import_date, import_id))
+            
+            result = cursor.fetchone()
+            if result and result['count'] > 0:
+                return True
+            
+            # Check for unit_history records created after import without import_id or with different import_id
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM unit_history
+                WHERE created_at > ?
+                  AND (import_id IS NULL OR import_id != ?)
+            """, (import_date, import_id))
+            
+            result = cursor.fetchone()
+            if result and result['count'] > 0:
+                return True
+            
+            return False

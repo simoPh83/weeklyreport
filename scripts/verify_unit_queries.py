@@ -15,7 +15,7 @@ def verify_unit_queries():
     db_path = get_db_path()
     
     print("="*80)
-    print("VERIFICATION: Unit queries with unit_square_footage JOIN")
+    print("VERIFICATION: Unit queries with unit_history JOIN")
     print("="*80)
     
     conn = sqlite3.connect(db_path)
@@ -26,12 +26,12 @@ def verify_unit_queries():
     print("\n1. Testing get_all_units query...")
     cursor.execute("""
         SELECT u.id, u.unit_name, u.building_id,
-               usf.sq_ft,
+               uh.sq_ft,
                b.property_name as building_name
         FROM units u
         LEFT JOIN buildings b ON u.building_id = b.id
-        LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
-        ORDER BY b.property_code, u.unit_name
+        LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
+        ORDER BY u.unit_name
         LIMIT 5
     """)
     
@@ -45,55 +45,55 @@ def verify_unit_queries():
     cursor.execute("""
         SELECT 
             COUNT(*) as total_units,
-            COUNT(usf.sq_ft) as units_with_sqft,
-            COUNT(*) - COUNT(usf.sq_ft) as units_without_sqft
+            COUNT(uh.sq_ft) as units_with_sqft,
+            COUNT(*) - COUNT(uh.sq_ft) as units_without_sqft
         FROM units u
-        LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
+        LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
     """)
     stats = cursor.fetchone()
     print(f"   Total units: {stats['total_units']}")
     print(f"   Units with sq_ft: {stats['units_with_sqft']}")
     print(f"   Units without sq_ft: {stats['units_without_sqft']}")
     
-    # Test 3: Check unit_square_footage table
-    print("\n3. Checking unit_square_footage table...")
+    # Test 3: Check unit_history table
+    print("\n3. Checking unit_history table...")
     cursor.execute("""
         SELECT 
             COUNT(*) as total_records,
             COUNT(CASE WHEN is_current = 1 THEN 1 END) as current_records,
             MIN(effective_from) as earliest_date,
             MAX(effective_from) as latest_date
-        FROM unit_square_footage
+        FROM unit_history
     """)
-    sqft_stats = cursor.fetchone()
-    print(f"   Total sq_ft records: {sqft_stats['total_records']}")
-    print(f"   Current records: {sqft_stats['current_records']}")
-    print(f"   Date range: {sqft_stats['earliest_date']} to {sqft_stats['latest_date']}")
+    history_stats = cursor.fetchone()
+    print(f"   Total history records: {history_stats['total_records']}")
+    print(f"   Current records: {history_stats['current_records']}")
+    print(f"   Date range: {history_stats['earliest_date']} to {history_stats['latest_date']}")
     
     # Test 4: Verify no orphaned records
     print("\n4. Checking data integrity...")
     cursor.execute("""
         SELECT COUNT(*) as orphaned
-        FROM unit_square_footage usf
-        WHERE NOT EXISTS (SELECT 1 FROM units u WHERE u.id = usf.unit_id)
+        FROM unit_history uh
+        WHERE NOT EXISTS (SELECT 1 FROM units u WHERE u.id = uh.unit_id)
     """)
     orphaned = cursor.fetchone()['orphaned']
     if orphaned == 0:
-        print("   ✓ No orphaned sq_ft records")
+        print("   ✓ No orphaned history records")
     else:
-        print(f"   ⚠️  Found {orphaned} orphaned sq_ft records")
+        print(f"   ⚠️  Found {orphaned} orphaned history records")
     
     # Test 5: Sample a specific unit
     print("\n5. Sample unit detail query...")
     cursor.execute("""
         SELECT u.*, 
-               usf.sq_ft,
+               uh.sq_ft,
                b.property_name as building_name,
                ut.description as unit_type_name
         FROM units u
         LEFT JOIN buildings b ON u.building_id = b.id
         LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
-        LEFT JOIN unit_square_footage usf ON u.id = usf.unit_id AND usf.is_current = 1
+        LEFT JOIN unit_history uh ON u.id = uh.unit_id AND uh.is_current = 1 AND uh.sq_ft IS NOT NULL
         LIMIT 1
     """)
     sample = cursor.fetchone()

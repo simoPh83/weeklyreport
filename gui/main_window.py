@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
     # Signal to safely handle lock lost from background thread
     lock_lost_signal = pyqtSignal(int)
     
-    def __init__(self, auth_service, building_service, unit_service, current_user, db_path, parent=None):
+    def __init__(self, auth_service, building_service, unit_service, current_user, db_path, db_manager=None, parent=None):
         super().__init__(parent)
         
         self.auth_service = auth_service
@@ -31,6 +31,7 @@ class MainWindow(QMainWindow):
         self.unit_service = unit_service
         self.current_user = current_user
         self.db_path = db_path
+        self.db_manager = db_manager
         self.is_read_only = False
         self.current_theme = load_theme_preference()  # Load saved theme preference
         
@@ -75,9 +76,8 @@ class MainWindow(QMainWindow):
         # Update user label
         self.userLabel.setText(f"User: {self.current_user['display_name']}")
         
-        # Update window title with database path
-        db_name = Path(self.db_path).name
-        self.setWindowTitle(f"Weekly Report - {db_name}")
+        # Update window title with current import filename
+        self.update_window_title()
         
         # Setup tables
         self.setup_buildings_table()
@@ -488,6 +488,9 @@ class MainWindow(QMainWindow):
         self.refresh_buildings()
         self.refresh_units()
         self.refresh_audit()
+        
+        # Update window title to reflect any data changes
+        self.update_window_title()
         
         # Only refresh permissions if tab is visible
         if hasattr(self, 'has_permissions_write'):
@@ -1195,4 +1198,19 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to apply changes: {str(e)}")
             self.refresh_user_roles()
-
+    
+    def update_window_title(self):
+        """Update window title with current import filename and [PLUS] indicator"""
+        try:
+            if self.db_manager:
+                import_display = self.db_manager.get_current_import_display()
+                self.setWindowTitle(f"Weekly Report - {import_display}")
+            else:
+                # Fallback to database name if db_manager not available
+                db_name = Path(self.db_path).name
+                self.setWindowTitle(f"Weekly Report - {db_name}")
+        except Exception as e:
+            # Fallback on error
+            db_name = Path(self.db_path).name
+            self.setWindowTitle(f"Weekly Report - {db_name}")
+            print(f"Error updating window title: {e}")

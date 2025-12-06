@@ -54,6 +54,9 @@ def main():
         building_service = BuildingService(repository, auth_service)
         unit_service = UnitService(repository, auth_service)
         
+        # Get db_manager reference for MainWindow
+        db_manager = repository.db_manager if hasattr(repository, 'db_manager') else None
+        
         # Show login dialog
         login_dialog = LoginDialog(auth_service)
         if login_dialog.exec() != login_dialog.DialogCode.Accepted:
@@ -91,7 +94,7 @@ def main():
             )
         
         # Create and show main window
-        main_window = MainWindow(auth_service, building_service, unit_service, current_user, db_path)
+        main_window = MainWindow(auth_service, building_service, unit_service, current_user, db_path, db_manager)
         main_window.show()
         
         # Run application

@@ -11,7 +11,7 @@ conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
 # Tables to check
-tables = ['buildings', 'units', 'unit_types', 'unit_square_footage', 'leases', 'tenants', 'business_categories']
+tables = ['buildings', 'units', 'unit_types', 'unit_history', 'leases', 'tenants', 'business_categories', 'bank_schedule_imports']
 
 for table in tables:
     print(f"\n{'='*60}")
